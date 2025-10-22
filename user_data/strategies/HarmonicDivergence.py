@@ -205,6 +205,7 @@ class HarmonicDivergence(IStrategy):
         "60": 0.02,
         "30": 0.03,
         "0": 0.05,
+
         # "420" : 0.005,
         # "300" : 0.007,
         # "240" : 0.009,
@@ -219,7 +220,7 @@ class HarmonicDivergence(IStrategy):
     use_custom_stoploss = True
 
     # Trailing stoploss
-    trailing_stop = True
+    trailing_stop = False
     trailing_stop_positive = 0.007
     trailing_stop_positive_offset = 0.015  # Disabled / not configured
     trailing_only_offset_is_reached = True
