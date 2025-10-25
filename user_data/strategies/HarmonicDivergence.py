@@ -255,6 +255,36 @@ class HarmonicDivergence(IStrategy):
 
     plot_config = None
 
+    # 添加保护机制
+    @property
+    def protections(self):
+        return [
+            {
+                # 如果在12小时内亏损超过60%，停止交易4小时
+                "method": "StoplossGuard",
+                "lookback_period_candles": 48,  # 12小时 (15分钟 * 48)
+                "trade_limit": 4,
+                "stop_duration_candles": 16,     # 停止4小时
+                "required_profit": -0.60
+            },
+            {
+                # 如果连续2笔交易止损，停止交易2小时
+                "method": "MaxDrawdown",
+                "lookback_period_candles": 24,  # 6小时
+                "trade_limit": 2,
+                "stop_duration_candles": 8,      # 停止2小时
+                "max_allowed_drawdown": 0.10     # 最大回撤10%
+            },
+            {
+                # 如果1小时内开仓超过4次，冷却1小时
+                "method": "LowProfitPairs",
+                "lookback_period_candles": 4,   # 1小时
+                "trade_limit": 4,
+                "stop_duration_candles": 4,
+                "required_profit": -0.02
+            }
+        ]
+
     def get_ticker_indicator(self):
         return int(self.timeframe[:-1])
 
