@@ -536,16 +536,13 @@ def ema_check(dataframe):
     return ~check
 
 def initialize_divergences_lists(dataframe: DataFrame):
-    dataframe["total_bullish_divergences"] = np.empty(len(dataframe['close'])) * np.nan
-    dataframe["total_bullish_divergences_count"] = np.empty(len(dataframe['close'])) * np.nan
-    dataframe["total_bullish_divergences_count"] = [0 if x != x else x for x in dataframe["total_bullish_divergences_count"]]
-    dataframe["total_bullish_divergences_names"] = np.empty(len(dataframe['close'])) * np.nan
-    dataframe["total_bullish_divergences_names"] = ['' if x != x else x for x in dataframe["total_bullish_divergences_names"]]
-    dataframe["total_bearish_divergences"] = np.empty(len(dataframe['close'])) * np.nan
-    dataframe["total_bearish_divergences_count"] = np.empty(len(dataframe['close'])) * np.nan
-    dataframe["total_bearish_divergences_count"] = [0 if x != x else x for x in dataframe["total_bearish_divergences_count"]]
-    dataframe["total_bearish_divergences_names"] = np.empty(len(dataframe['close'])) * np.nan
-    dataframe["total_bearish_divergences_names"] = ['' if x != x else x for x in dataframe["total_bearish_divergences_names"]]
+    row_count = len(dataframe)
+    dataframe["total_bullish_divergences"] = np.nan
+    dataframe["total_bullish_divergences_count"] = np.zeros(row_count, dtype=int)
+    dataframe["total_bullish_divergences_names"] = [""] * row_count
+    dataframe["total_bearish_divergences"] = np.nan
+    dataframe["total_bearish_divergences_count"] = np.zeros(row_count, dtype=int)
+    dataframe["total_bearish_divergences_names"] = [""] * row_count
 
 def add_divergences(dataframe: DataFrame, indicator: str):
     (bearish_divergences, bearish_lines, bullish_divergences, bullish_lines) = divergence_finder_dataframe(dataframe, indicator)
@@ -563,6 +560,22 @@ def divergence_finder_dataframe(dataframe: DataFrame, indicator_source: str) -> 
     bullish_divergences = np.empty(len(dataframe['close'])) * np.nan
     low_iterator = []
     high_iterator = []
+    indicator_label = indicator_source.upper() + '<br>'
+
+    def _append_divergence_metadata(position: int, count_column: str, name_column: str) -> None:
+        if position <= 30:
+            return
+        target_position = position - 30
+        target_index = dataframe.index[target_position]
+        current_count = dataframe.loc[target_index, count_column]
+        if pd.isna(current_count):
+            current_count = 0
+        dataframe.loc[target_index, count_column] = current_count + 1
+
+        current_names = dataframe.loc[target_index, name_column]
+        if pd.isna(current_names):
+            current_names = ""
+        dataframe.loc[target_index, name_column] = f"{current_names}{indicator_label}"
 
     for index, row in enumerate(dataframe.itertuples(index=True, name='Pandas')):
         if np.isnan(row.pivot_lows):
@@ -613,10 +626,13 @@ def divergence_finder_dataframe(dataframe: DataFrame, indicator_source: str) -> 
                 bearish_lines_index = bearish_lines_index + 1
             if can_exist:
                 bearish_divergences[index] = row.close
-                dataframe["total_bearish_divergences"][index] = row.close
-                if index > 30:
-                    dataframe["total_bearish_divergences_count"][index-30] = dataframe["total_bearish_divergences_count"][index-30] + 1
-                    dataframe["total_bearish_divergences_names"][index-30] = dataframe["total_bearish_divergences_names"][index-30] + indicator_source.upper() + '<br>'
+                row_index = dataframe.index[index]
+                dataframe.loc[row_index, "total_bearish_divergences"] = row.close
+                _append_divergence_metadata(
+                    index,
+                    "total_bearish_divergences_count",
+                    "total_bearish_divergences_names",
+                )
 
         bullish_occurence = bullish_divergence_finder(dataframe,
             dataframe[indicator_source],
@@ -655,11 +671,14 @@ def divergence_finder_dataframe(dataframe: DataFrame, indicator_source: str) -> 
                 bullish_lines_index = bullish_lines_index + 1
             if can_exist:
                 bullish_divergences[index] = row.close
-                dataframe["total_bullish_divergences"][index] = row.close
-                if index > 30:
-                    dataframe["total_bullish_divergences_count"][index-30] = dataframe["total_bullish_divergences_count"][index-30] + 1
-                    dataframe["total_bullish_divergences_names"][index-30] = dataframe["total_bullish_divergences_names"][index-30] + indicator_source.upper() + '<br>'
-    
+                row_index = dataframe.index[index]
+                dataframe.loc[row_index, "total_bullish_divergences"] = row.close
+                _append_divergence_metadata(
+                    index,
+                    "total_bullish_divergences_count",
+                    "total_bullish_divergences_names",
+                )
+
     return (bearish_divergences, bearish_lines, bullish_divergences, bullish_lines)
 
 def bearish_divergence_finder(dataframe, indicator, high_iterator, index):
