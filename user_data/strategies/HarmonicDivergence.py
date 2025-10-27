@@ -476,19 +476,12 @@ class HarmonicDivergence(IStrategy):
         dataframe, _ = self.dp.get_analyzed_dataframe(pair, self.timeframe)
         stoploss = 999999
 
-        for i in range(1,len(dataframe['close'])):            
-            if dataframe.iloc[-i]['date'].to_pydatetime().replace(tzinfo=datetime.timezone.utc) == trade.open_date_utc:
-                buy_candle = dataframe.iloc[-i-1].squeeze()
-                stoploss = buy_candle[resample('low')] - buy_candle[resample('atr')]
-                # stoploss = buy_candle[resample('high')] - buy_candle[resample('atr')]
-                break
-
-        # Convert absolute price to percentage relative to current_rate
-        if stoploss < current_rate:
-            return (stoploss / current_rate) - 1
-
-        # return maximum stoploss value, keeping current stoploss price unchanged
-        return 1
+        entry_candle = dataframe.loc[dataframe['date'] <= trade.open_date_utc].iloc[0]
+        stoploss_price = entry_candle[resample('low')] - entry_candle[resample('atr')]
+        if stoploss_price < current_rate:
+            print("Custom Stoploss set to: " + str((stoploss_price / current_rate) - 1))
+            return (stoploss_price / current_rate) - 1
+        return None  # 保持当前止损
 
 def resample(indicator):
     # return "resample_15_" + indicator
