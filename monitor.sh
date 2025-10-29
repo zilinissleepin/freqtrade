@@ -2,7 +2,7 @@
 
 LOG_FILE="/home/zilin/freqtrade/user_data/logs/freqtrade_production.log"
 TELEGRAM_BOT_TOKEN="6124545364:AAFIKAOm-LVW0ZBN8uFXp4Ygs1-VKinwSfI"
-TELEGRAM_CHAT_ID="-4187100419"
+TELEGRAM_CHAT_ID="-4998681236"
 
 # 检查最后一次写入日志的时间
 LAST_LOG_TIME=$(stat -c %Y "$LOG_FILE")

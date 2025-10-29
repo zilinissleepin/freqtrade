@@ -479,7 +479,6 @@ class HarmonicDivergence(IStrategy):
         entry_candle = dataframe.loc[dataframe['date'] <= trade.open_date_utc].iloc[-1]
         stoploss_price = entry_candle[resample('low')] - entry_candle[resample('atr')]
         if stoploss_price < current_rate:
-            print("Custom Stoploss set to: " + str((stoploss_price / current_rate) - 1))
             return (stoploss_price / current_rate) - 1
         return None  # 保持当前止损
 
