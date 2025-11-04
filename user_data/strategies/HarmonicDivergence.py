@@ -19,8 +19,11 @@ import talib.abstract as ta
 import freqtrade.vendor.qtpylib.indicators as qtpylib
 from collections import deque
 
+STARTUP_CANDLE_COUNT = 200
 
 class PlotConfig():
+
+    startup_candle_count: int = STARTUP_CANDLE_COUNT
 
     def __init__(self):
         self.config = {
@@ -89,56 +92,61 @@ class PlotConfig():
         return self
 
     def add_divergence_in_config(self, indicator:str):
-        # self.config['main_plot']["bullish_divergence_" + indicator + "_occurence"] = {
-        #     "plotly": {
-        #         'mode': 'markers',
-        #         'marker': {
-        #             'symbol': 'diamond',
-        #             'size': 11,
-        #             'line': {
-        #                 'width': 2
-        #             },
-        #             'color': 'orange'
-        #         }
-        #     }
-        # }
-        # self.config['main_plot']["bearish_divergence_" + indicator + "_occurence"] = {
-        #     "plotly": {
-        #         'mode': 'markers',
-        #         'marker': {
-        #             'symbol': 'diamond',
-        #             'size': 11,
-        #             'line': {
-        #                 'width': 2
-        #             },
-        #             'color': 'purple'
-        #         }
-        #     }
-        # }
-        for i in range(3):
-            self.config['main_plot']["bullish_divergence_" + indicator + "_line_" + str(i)] = {
-                "plotly": {
-                    'mode': 'lines',
-                    'line' : {
-                        'color': 'green',
-                        'dash' :'dash'
-                    }
+        self.config['main_plot']["bullish_divergence_" + indicator + "_occurence"] = {
+            "plotly": {
+                'mode': 'markers',
+                'marker': {
+                    'symbol': 'diamond',
+                    'size': 11,
+                    'line': {
+                        'width': 2
+                    },
+                    'color': 'orange'
                 }
-            }   
-            self.config['main_plot']["bearish_divergence_" + indicator + "_line_" + str(i)] = {
-                "plotly": {
-                    'mode': 'lines',
-                    'line' : {
-                        "color":'crimson',
-                        'dash' :'dash'
-                    }
+            }
+        }
+        self.config['main_plot']["bearish_divergence_" + indicator + "_occurence"] = {
+            "plotly": {
+                'mode': 'markers',
+                'marker': {
+                    'symbol': 'diamond',
+                    'size': 11,
+                    'line': {
+                        'width': 2
+                    },
+                    'color': 'purple'
                 }
-            } 
+            }
+        }
+        # for i in range(3):
+        #     self.config['main_plot']["bullish_divergence_" + indicator + "_line_" + str(i)] = {
+        #         "plotly": {
+        #             'mode': 'lines',
+        #             'line' : {
+        #                 'color': 'green',
+        #                 'dash' :'dash'
+        #             }
+        #         }
+        #     }   
+        #     self.config['main_plot']["bearish_divergence_" + indicator + "_line_" + str(i)] = {
+        #         "plotly": {
+        #             'mode': 'lines',
+        #             'line' : {
+        #                 "color":'crimson',
+        #                 'dash' :'dash'
+        #             }
+        #         }
+        #     } 
         return self
 
     def add_total_divergences_in_config(self, dataframe):
         total_bullish_divergences_count = dataframe[resample("total_bullish_divergences_count")]
         total_bullish_divergences_names = dataframe[resample("total_bullish_divergences_names")]
+        
+        # 为两个序列去掉startup_candle_count个元素
+        total_bullish_divergences_count = total_bullish_divergences_count[self.startup_candle_count:]
+        total_bullish_divergences_names = total_bullish_divergences_names[self.startup_candle_count:]
+
         self.config['main_plot'][resample("total_bullish_divergences")] = {
             "plotly": {
                 'mode': 'markers+text',
@@ -158,6 +166,11 @@ class PlotConfig():
         }
         total_bearish_divergences_count = dataframe[resample("total_bearish_divergences_count")]
         total_bearish_divergences_names = dataframe[resample("total_bearish_divergences_names")]
+
+        # 在两个序列的首部去掉startup_candle_count个元素
+        total_bearish_divergences_count = total_bearish_divergences_count[self.startup_candle_count:]
+        total_bearish_divergences_names = total_bearish_divergences_names[self.startup_candle_count:]
+
         self.config['main_plot'][resample("total_bearish_divergences")] = {
             "plotly": {
                 'mode': 'markers+text',
@@ -237,7 +250,7 @@ class HarmonicDivergence(IStrategy):
     ignore_roi_if_entry_signal = False
 
     # Number of candles the strategy requires before producing valid signals
-    startup_candle_count: int = 30
+    startup_candle_count: int = STARTUP_CANDLE_COUNT
 
     # Optional order type mapping.
     order_types = {
@@ -394,18 +407,18 @@ class HarmonicDivergence(IStrategy):
         #         print(dataframe[resample("total_bullish_divergences_names")][index])
         HarmonicDivergence.plot_config = (
             PlotConfig()
-            # .add_pivots_in_config()
-            # .add_divergence_in_config('rsi')
-            # .add_divergence_in_config('stoch')
-            # .add_divergence_in_config('roc')
-            # .add_divergence_in_config('uo')
-            # .add_divergence_in_config('ao')
-            # .add_divergence_in_config('macd')
-            # .add_divergence_in_config('cci')
-            # .add_divergence_in_config('cmf')
-            # .add_divergence_in_config('obv')
-            # .add_divergence_in_config('mfi')
-            # .add_divergence_in_config('adx')
+            .add_pivots_in_config()
+            .add_divergence_in_config('rsi')
+            .add_divergence_in_config('stoch')
+            .add_divergence_in_config('roc')
+            .add_divergence_in_config('uo')
+            .add_divergence_in_config('ao')
+            .add_divergence_in_config('macd')
+            .add_divergence_in_config('cci')
+            .add_divergence_in_config('cmf')
+            .add_divergence_in_config('obv')
+            .add_divergence_in_config('mfi')
+            .add_divergence_in_config('adx')
             .add_total_divergences_in_config(dataframe)
             .config)
 
@@ -555,9 +568,9 @@ def divergence_finder_dataframe(dataframe: DataFrame, indicator_source: str) -> 
     indicator_label = indicator_source.upper() + '<br>'
 
     def _append_divergence_metadata(position: int, count_column: str, name_column: str) -> None:
-        if position <= 30:
+        if position < 0:
             return
-        target_position = position - 30
+        target_position = position
         target_index = dataframe.index[target_position]
         current_count = dataframe.loc[target_index, count_column]
         if pd.isna(current_count):
