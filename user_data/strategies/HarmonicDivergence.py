@@ -559,12 +559,16 @@ def add_divergences(dataframe: DataFrame, indicator: str):
     #     dataframe['bullish_divergence_' + indicator + '_line_'+ str(index)] = bullish_line
 
 def divergence_finder_dataframe(dataframe: DataFrame, indicator_source: str) -> Tuple[pd.Series, pd.Series]:
+    # 用于存储背离连线（绘图用）
     bearish_lines = [np.empty(len(dataframe['close'])) * np.nan]
+    # 记录背离出现时的收盘价；其它位置用 NaN 占位。
     bearish_divergences = np.empty(len(dataframe['close'])) * np.nan
     bullish_lines = [np.empty(len(dataframe['close'])) * np.nan]
     bullish_divergences = np.empty(len(dataframe['close'])) * np.nan
+    # 跟踪每个row index最近一次枢轴低点/高点的位置索引。
     low_iterator = []
     high_iterator = []
+    # 指标标签，用于在图表中显示
     indicator_label = indicator_source.upper() + '<br>'
 
     def _append_divergence_metadata(position: int, count_column: str, name_column: str) -> None:
@@ -572,16 +576,21 @@ def divergence_finder_dataframe(dataframe: DataFrame, indicator_source: str) -> 
             return
         target_position = position
         target_index = dataframe.index[target_position]
+
+        # 背离数统计
         current_count = dataframe.loc[target_index, count_column]
         if pd.isna(current_count):
             current_count = 0
         dataframe.loc[target_index, count_column] = current_count + 1
 
+        # 背离名称统计
         current_names = dataframe.loc[target_index, name_column]
         if pd.isna(current_names):
             current_names = ""
         dataframe.loc[target_index, name_column] = f"{current_names}{indicator_label}"
 
+    # 遍历 DataFrame，若当前行没有枢轴低点，就沿用上一行记录的索引；有则记录本行索引。高点同理。
+    # 便于后续用 *_iterator[index] 直接得知“最新枢轴位于何处”。
     for index, row in enumerate(dataframe.itertuples(index=True, name='Pandas')):
         if np.isnan(row.pivot_lows):
             low_iterator.append(0 if len(low_iterator) == 0 else low_iterator[-1])
@@ -592,13 +601,22 @@ def divergence_finder_dataframe(dataframe: DataFrame, indicator_source: str) -> 
         else:
             high_iterator.append(index)
 
+    # 再次遍历每根蜡烛，检查当前是否是枢轴高/低点并寻找背离。
     for index, row in enumerate(dataframe.itertuples(index=True, name='Pandas')):
-
+        # 调用 bearish_divergence_finder()，
+        # 若当前行是枢轴高点且与最近几个枢轴高点满足“价格与指标走势相背”条件，
+        # 返回 (prev_pivot, current_pivot)；否则返回 None。
         bearish_occurence = bearish_divergence_finder(dataframe,
             dataframe[indicator_source],
             high_iterator,
             index)
 
+        # 解析前后枢轴的价格/指标值，并建立连线：
+        # length 为两枢轴间的距离。
+        # 循环中逐步检查连线是否“穿透”了中间价位或指标值，且是否与已有连线冲突；若冲突则 can_exist=False。
+        # 若整段连线可行，写入 bearish_divergences[index] = row.close，表示“当前蜡烛检测到看跌背离”，
+        # 并把 row.close 同步写到 DataFrame 的 total_bearish_divergences 列。
+        # 调用 _append_divergence_metadata 把统计信息写入 _count、_names 列。
         if bearish_occurence != None:
             (prev_pivot , current_pivot) = bearish_occurence 
             bearish_prev_pivot = dataframe['close'][prev_pivot]
