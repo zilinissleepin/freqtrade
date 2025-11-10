@@ -23,7 +23,7 @@ STARTUP_CANDLE_COUNT = 200
 
 class PlotConfig():
 
-    startup_candle_count: int = STARTUP_CANDLE_COUNT
+    startup_candle_count_offset: int = STARTUP_CANDLE_COUNT
 
     def __init__(self):
         self.config = {
@@ -144,13 +144,13 @@ class PlotConfig():
         total_bullish_divergences_names = dataframe[resample("total_bullish_divergences_names")]
         
         # 为两个序列去掉startup_candle_count个元素
-        total_bullish_divergences_count = total_bullish_divergences_count[self.startup_candle_count:]
-        total_bullish_divergences_names = total_bullish_divergences_names[self.startup_candle_count:]
+        total_bullish_divergences_count = total_bullish_divergences_count[self.startup_candle_count_offset:]
+        total_bullish_divergences_names = total_bullish_divergences_names[self.startup_candle_count_offset:]
 
         self.config['main_plot'][resample("total_bullish_divergences")] = {
             "plotly": {
                 'mode': 'markers+text',
-                'text': total_bullish_divergences_count,
+                'text': total_bullish_divergences_count.apply(lambda x: str(int(x)) if pd.notna(x) else ""),
                 'hovertext': total_bullish_divergences_names,
                 'textfont':{'size': 11, 'color':'green'},
                 'textposition':'bottom center',
@@ -168,13 +168,13 @@ class PlotConfig():
         total_bearish_divergences_names = dataframe[resample("total_bearish_divergences_names")]
 
         # 在两个序列的首部去掉startup_candle_count个元素
-        total_bearish_divergences_count = total_bearish_divergences_count[self.startup_candle_count:]
-        total_bearish_divergences_names = total_bearish_divergences_names[self.startup_candle_count:]
+        total_bearish_divergences_count = total_bearish_divergences_count[self.startup_candle_count_offset:]
+        total_bearish_divergences_names = total_bearish_divergences_names[self.startup_candle_count_offset:]
 
         self.config['main_plot'][resample("total_bearish_divergences")] = {
             "plotly": {
                 'mode': 'markers+text',
-                'text': total_bearish_divergences_count,
+                'text': total_bearish_divergences_count.apply(lambda x: str(int(x)) if pd.notna(x) else ""),
                 'hovertext': total_bearish_divergences_names,
                 'textfont':{'size': 11, 'color':'crimson'},
                 'textposition':'top center',
@@ -214,10 +214,10 @@ class HarmonicDivergence(IStrategy):
     # Minimal ROI designed for the strategy.
     # This attribute will be overridden if the config file contains "minimal_roi".
     minimal_roi = {
-        "300" : 0.01,
-        "60": 0.02,
-        "30": 0.03,
-        "0": 0.05,
+        # "300" : 0.01,
+        # "60": 0.02,
+        # "30": 0.03,
+        # "0": 0.05,
 
         # "420" : 0.005,
         # "300" : 0.007,
@@ -468,20 +468,40 @@ class HarmonicDivergence(IStrategy):
         
     def custom_exit(self, pair: str, trade: 'Trade', current_time: 'datetime', current_rate: float,
                     current_profit: float, **kwargs):
-
+        """
+        自定义退出逻辑：
+        1. 如果持有多头仓位，检测到看空背离时平仓
+        2. (原有的 takeprofit 逻辑已禁用)
+        """
         dataframe, _ = self.dp.get_analyzed_dataframe(pair, self.timeframe)
-        takeprofit = 999999
-        # self.trailing_stop = False
-        
-        for i in range(1,len(dataframe['close'])):
-            if dataframe.iloc[-i]['date'].to_pydatetime().replace(tzinfo=datetime.timezone.utc) == trade.open_date_utc:
-                buy_candle = dataframe.iloc[-i-1].squeeze()
-                takeprofit = buy_candle[resample('high')] + buy_candle[resample('atr')]
-                break
 
+        # 检查是否为空 dataframe
+        if dataframe is None or len(dataframe) < 2:
+            return None
+
+        # 获取最新的 K 线数据（已收盘的 K 线）
+        last_candle = dataframe.iloc[-1]
+
+        # 如果持有多头仓位，检测看空背离
+        if not trade.is_short:
+            # 检查最新 K 线是否有看空背离信号
+            bearish_divergences = last_candle.get(resample('total_bearish_divergences'), 0)
+
+            if not pd.isna(bearish_divergences) and bearish_divergences > 0:
+                # 检测到看空背离，平仓
+                return 'bearish_divergence_exit'
+
+        # 原有的 takeprofit 逻辑（已禁用）
+        # takeprofit = 999999
+        # for i in range(1,len(dataframe['close'])):
+        #     if dataframe.iloc[-i]['date'].to_pydatetime().replace(tzinfo=datetime.timezone.utc) == trade.open_date_utc:
+        #         buy_candle = dataframe.iloc[-i-1].squeeze()
+        #         takeprofit = buy_candle[resample('high')] + buy_candle[resample('atr')]
+        #         break
         # if takeprofit < current_rate:
-            # self.trailing_stop = True
-            # return True
+        #     return 'takeprofit_atr'
+
+        return None
 
     def custom_stoploss(self, pair: str, trade: 'Trade', current_time: datetime,
                             current_rate: float, current_profit: float, **kwargs) -> float:
@@ -543,10 +563,10 @@ def ema_check(dataframe):
 def initialize_divergences_lists(dataframe: DataFrame):
     row_count = len(dataframe)
     dataframe["total_bullish_divergences"] = np.nan
-    dataframe["total_bullish_divergences_count"] = np.zeros(row_count, dtype=int)
+    dataframe["total_bullish_divergences_count"] = np.nan  # 修复：统一用 NaN 表示"无背离"
     dataframe["total_bullish_divergences_names"] = [""] * row_count
     dataframe["total_bearish_divergences"] = np.nan
-    dataframe["total_bearish_divergences_count"] = np.zeros(row_count, dtype=int)
+    dataframe["total_bearish_divergences_count"] = np.nan  # 修复：统一用 NaN 表示"无背离"
     dataframe["total_bearish_divergences_names"] = [""] * row_count
 
 def add_divergences(dataframe: DataFrame, indicator: str):
