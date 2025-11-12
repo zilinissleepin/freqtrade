@@ -697,6 +697,11 @@ def divergence_finder_dataframe(dataframe: DataFrame, indicator_source: str) -> 
                 bearish_divergences[index] = row.close
                 row_index = dataframe.index[index]
                 dataframe.loc[row_index, "total_bearish_divergences"] = row.close
+                
+                # 打印当前行的日期和看跌背离信息
+                print(f"dataframe.loc[row_index, 'date']: {dataframe.loc[row_index, 'date']}")
+                print(f"Date: {row.date}, Bearish Divergence Close: {row.close}")
+
                 _append_divergence_metadata(
                     index,
                     "total_bearish_divergences_count",
