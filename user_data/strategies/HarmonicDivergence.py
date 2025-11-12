@@ -2,7 +2,7 @@
 # flake8: noqa: F401
 
 # --- Do not remove these libs ---
-import datetime
+from datetime import datetime, timezone
 from typing import List, Tuple
 import numpy as np  # noqa
 import pandas as pd  # noqa
@@ -699,8 +699,10 @@ def divergence_finder_dataframe(dataframe: DataFrame, indicator_source: str) -> 
                 dataframe.loc[row_index, "total_bearish_divergences"] = row.close
                 
                 # 打印当前行的日期和看跌背离信息
-                print(f"dataframe.loc[row_index, 'date']: {dataframe.loc[row_index, 'date']}")
-                print(f"Date: {row.date}, Bearish Divergence Close: {row.close}")
+                # 如果当前的计算机时间跟 dataframe 的时间相差在小于等于30分钟以内，打印出来以便调试
+                current_time = datetime.now(timezone.utc)
+                if abs((current_time - row.date).total_seconds()) <= 1800:
+                    print(f"Date: {row.date}, Bearish Divergence Close: {row.close}, current date: {current_time}")
 
                 _append_divergence_metadata(
                     index,
