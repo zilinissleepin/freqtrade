@@ -241,6 +241,9 @@ class HarmonicDivergence(IStrategy):
     # Optimal timeframe for the strategy.
     timeframe = '15m'
 
+    # 启用做空交易（必须显式声明）
+    can_short = True
+
     # Run "populate_indicators()" only for new candle.
     process_only_new_candles = False
 
@@ -434,6 +437,7 @@ class HarmonicDivergence(IStrategy):
         dataframe.loc[
             (
                 (dataframe[resample('total_bullish_divergences')].shift() > 0)
+                # (dataframe[resample('total_bullish_divergences')] > 0)
                 # # & (dataframe['high'] > dataframe['high'].shift())
                 # & (
                 #     (keltner_middleband_check(dataframe) & (ema_check(dataframe)) & (green_candle(dataframe)))
@@ -449,6 +453,15 @@ class HarmonicDivergence(IStrategy):
                 & (dataframe['volume'] > 0)  # Make sure Volume is not 0
             ),
             'enter_long'] = 1
+
+        # # 做空入场信号：检测看空背离
+        # dataframe.loc[
+        #     (
+        #         (dataframe[resample('total_bearish_divergences')] > 0)
+        #         & two_bands_check(dataframe)
+        #         & (dataframe['volume'] > 0)
+        #     ),
+        #     'enter_short'] = 1
 
         return dataframe
 
@@ -471,25 +484,38 @@ class HarmonicDivergence(IStrategy):
         """
         自定义退出逻辑：
         1. 如果持有多头仓位，检测到看空背离时平仓
-        2. (原有的 takeprofit 逻辑已禁用)
+        2. 如果持有空头仓位，检测到看多背离时平仓
+        3. (原有的 takeprofit 逻辑已禁用)
         """
         dataframe, _ = self.dp.get_analyzed_dataframe(pair, self.timeframe)
 
         # 检查是否为空 dataframe
         if dataframe is None or len(dataframe) < 2:
+            print(f"{pair} custom_exit: dataframe is None or too short")
             return None
 
         # 获取最新的 K 线数据（已收盘的 K 线）
         last_candle = dataframe.iloc[-1]
+        print(f"{pair} custom_exit: last_candle time: {last_candle['date']}")
 
         # 如果持有多头仓位，检测看空背离
         if not trade.is_short:
             # 检查最新 K 线是否有看空背离信号
             bearish_divergences = last_candle.get(resample('total_bearish_divergences'), 0)
+            print(f"{pair} custom_exit: bearish_divergences: {bearish_divergences}")
 
             if not pd.isna(bearish_divergences) and bearish_divergences > 0:
                 # 检测到看空背离，平仓
                 return 'bearish_divergence_exit'
+
+        # 如果持有空头仓位，检测看多背离
+        else:
+            # 检查最新 K 线是否有看多背离信号
+            bullish_divergences = last_candle.get(resample('total_bullish_divergences'), 0)
+
+            if not pd.isna(bullish_divergences) and bullish_divergences > 0:
+                # 检测到看多背离，平仓
+                return 'bullish_divergence_exit'
 
         # 原有的 takeprofit 逻辑（已禁用）
         # takeprofit = 999999
