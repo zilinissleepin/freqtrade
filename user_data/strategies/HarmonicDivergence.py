@@ -496,7 +496,8 @@ class HarmonicDivergence(IStrategy):
 
         # 获取最新的 K 线数据（已收盘的 K 线）
         last_candle = dataframe.iloc[-1]
-        print(f"{pair} custom_exit: last_candle time: {last_candle['date']}")
+        print(f"{pair} custom_exit: last_candle time: {last_candle['date']}, open: {last_candle['open']}, close: {last_candle['close']}")
+        print(f"{pair} custom_exit: dataframe length: {len(dataframe)}, df tail:\n{dataframe.tail(3)}, df head:\n{dataframe.head(3)}")
 
         # 如果持有多头仓位，检测看空背离
         if not trade.is_short:
@@ -506,6 +507,7 @@ class HarmonicDivergence(IStrategy):
 
             if not pd.isna(bearish_divergences) and bearish_divergences > 0:
                 # 检测到看空背离，平仓
+                print(f"bearish_divergence_exit detected")
                 return 'bearish_divergence_exit'
 
         # 如果持有空头仓位，检测看多背离
