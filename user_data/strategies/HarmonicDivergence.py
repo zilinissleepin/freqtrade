@@ -498,6 +498,14 @@ class HarmonicDivergence(IStrategy):
         last_candle = dataframe.iloc[-1]
         # print(f"{pair} custom_exit: last_candle time: {last_candle['date']}, open: {last_candle['open']}, close: {last_candle['close']}")
 
+        # 帮我打印tail 5的信息，并且每一个pair的每一小时打印一次，设置一个缓存，打印过的不能重复打印
+        current_hour = last_candle['date'].hour
+        if not hasattr(self, 'printed_hours'):
+            self.printed_hours = set()
+        if (pair, current_hour) not in self.printed_hours:
+            print(f"tail 5 of dataframe({pair}):\n{dataframe.tail(5)}")
+            self.printed_hours.add((pair, current_hour))
+
         # 如果持有多头仓位，检测看空背离
         if not trade.is_short:
             # 检查最新 K 线是否有看空背离信号
@@ -708,8 +716,8 @@ def divergence_finder_dataframe(dataframe: DataFrame, indicator_source: str) -> 
                 # # 打印df的tail3信息，
                 # print(f"DataFrame tail 3 rows:\n{dataframe.tail(3)}")
 
-                # 打印背离统计数量
-                print(f"Total Bearish Divergences Count: {dataframe['total_bearish_divergences_count'].sum()}")
+                # # 打印背离统计数量
+                # print(f"Total Bearish Divergences Count: {dataframe['total_bearish_divergences_count'].sum()}")
 
                 _append_divergence_metadata(
                     index,
