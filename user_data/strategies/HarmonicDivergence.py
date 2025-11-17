@@ -475,17 +475,29 @@ class HarmonicDivergence(IStrategy):
         """
         # dataframe.loc[
         #     (
-        #         dataframe[resample('total_bearish_divergences')].notna() &
-        #         (dataframe[resample('total_bearish_divergences')] > 0)
+        #         (dataframe['volume'] > 0)  # Make sure Volume is not 0
         #     ),
-        #     'exit_long'] = 1
+        #     'exit_long'] = 0
 
         # dataframe.loc[
         #     (
-        #         dataframe[resample('total_bullish_divergences')].notna() &
-        #         (dataframe[resample('total_bullish_divergences')] > 0)
+        #         (dataframe['volume'] > 0)  # Make sure Volume is not 0
         #     ),
-        #     'exit_short'] = 1
+        #     'exit_short'] = 0
+        
+        dataframe.loc[
+            (
+                dataframe[resample('total_bearish_divergences')].notna() &
+                (dataframe[resample('total_bearish_divergences')] > 0)
+            ),
+            'exit_long'] = 1
+
+        dataframe.loc[
+            (
+                dataframe[resample('total_bullish_divergences')].notna() &
+                (dataframe[resample('total_bullish_divergences')] > 0)
+            ),
+            'exit_short'] = 1
 
         return dataframe
         
