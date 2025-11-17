@@ -436,7 +436,7 @@ class HarmonicDivergence(IStrategy):
         """
         dataframe.loc[
             (
-                (dataframe[resample('total_bullish_divergences')].shift() > 0)
+                (dataframe[resample('total_bullish_divergences')] > 0)
                 # (dataframe[resample('total_bullish_divergences')] > 0)
                 # # & (dataframe['high'] > dataframe['high'].shift())
                 # & (
@@ -467,16 +467,26 @@ class HarmonicDivergence(IStrategy):
 
     def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         """
-        Based on TA indicators, populates the sell signal for the given dataframe
-        :param dataframe: DataFrame populated with indicators
-        :param metadata: Additional information, like the currently traded pair
-        :return: DataFrame with buy column
+        基于背离信号的退出策略
+
+        做多退出：检测到看跌背离
+        做空退出：检测到看涨背离
+
         """
         dataframe.loc[
             (
-                (dataframe['volume'] > 0)  # Make sure Volume is not 0
+                dataframe[resample('total_bearish_divergences')].notna() &
+                (dataframe[resample('total_bearish_divergences')] > 0)
             ),
-            'exit_long'] = 0
+            'exit_long'] = 1
+
+        dataframe.loc[
+            (
+                dataframe[resample('total_bullish_divergences')].notna() &
+                (dataframe[resample('total_bullish_divergences')] > 0)
+            ),
+            'exit_short'] = 1
+
         return dataframe
         
     def custom_exit(self, pair: str, trade: 'Trade', current_time: 'datetime', current_rate: float,
@@ -487,46 +497,36 @@ class HarmonicDivergence(IStrategy):
         2. 如果持有空头仓位，检测到看多背离时平仓
         3. (原有的 takeprofit 逻辑已禁用)
         """
-        dataframe, _ = self.dp.get_analyzed_dataframe(pair, self.timeframe)
+        # dataframe, _ = self.dp.get_analyzed_dataframe(pair, self.timeframe)
 
-        # 检查是否为空 dataframe
-        if dataframe is None or len(dataframe) < 2:
-            print(f"{pair} custom_exit: dataframe is None or too short")
-            return None
+        # # 检查是否为空 dataframe
+        # if dataframe is None or len(dataframe) < 2:
+        #     print(f"{pair} custom_exit: dataframe is None or too short")
+        #     return None
 
-        # 获取最新的 K 线数据（已收盘的 K 线）
-        last_candle = dataframe.iloc[-1]
-        # print(f"{pair} custom_exit: last_candle time: {last_candle['date']}, open: {last_candle['open']}, close: {last_candle['close']}")
+        # # 获取最新的 K 线数据（已收盘的 K 线）
+        # last_candle = dataframe.iloc[-1]
+        # # print(f"{pair} custom_exit: last_candle time: {last_candle['date']}, open: {last_candle['open']}, close: {last_candle['close']}")
 
-        # 帮我打印tail 5的信息，并且每一个pair的每一小时打印一次，设置一个缓存，打印过的不能重复打印
-        current_hour = last_candle['date'].hour
-        if not hasattr(self, 'printed_hours'):
-            self.printed_hours = set()
-        if (pair, current_hour) not in self.printed_hours:
-            coin = pair.split('/')[0]
-            print(f"tail 200 of dataframe({pair})")
-            dataframe.tail(200).to_csv(f'./full_dataframe_{coin}_{current_hour}.csv', index=False)
-            self.printed_hours.add((pair, current_hour))
+        # # 如果持有多头仓位，检测看空背离
+        # if not trade.is_short:
+        #     # 检查最新 K 线是否有看空背离信号
+        #     bearish_divergences = last_candle.get(resample('total_bearish_divergences'), 0)
+        #     # print(f"{pair} custom_exit: bearish_divergences: {bearish_divergences}")
 
-        # 如果持有多头仓位，检测看空背离
-        if not trade.is_short:
-            # 检查最新 K 线是否有看空背离信号
-            bearish_divergences = last_candle.get(resample('total_bearish_divergences'), 0)
-            # print(f"{pair} custom_exit: bearish_divergences: {bearish_divergences}")
+        #     if not pd.isna(bearish_divergences) and bearish_divergences > 0:
+        #         # 检测到看空背离，平仓
+        #         print(f"bearish_divergence_exit detected")
+        #         return 'bearish_divergence_exit'
 
-            if not pd.isna(bearish_divergences) and bearish_divergences > 0:
-                # 检测到看空背离，平仓
-                print(f"bearish_divergence_exit detected")
-                return 'bearish_divergence_exit'
+        # # 如果持有空头仓位，检测看多背离
+        # else:
+        #     # 检查最新 K 线是否有看多背离信号
+        #     bullish_divergences = last_candle.get(resample('total_bullish_divergences'), 0)
 
-        # 如果持有空头仓位，检测看多背离
-        else:
-            # 检查最新 K 线是否有看多背离信号
-            bullish_divergences = last_candle.get(resample('total_bullish_divergences'), 0)
-
-            if not pd.isna(bullish_divergences) and bullish_divergences > 0:
-                # 检测到看多背离，平仓
-                return 'bullish_divergence_exit'
+        #     if not pd.isna(bullish_divergences) and bullish_divergences > 0:
+        #         # 检测到看多背离，平仓
+        #         return 'bullish_divergence_exit'
 
         # 原有的 takeprofit 逻辑（已禁用）
         # takeprofit = 999999
@@ -709,11 +709,11 @@ def divergence_finder_dataframe(dataframe: DataFrame, indicator_source: str) -> 
                 row_index = dataframe.index[index]
                 dataframe.loc[row_index, "total_bearish_divergences"] = row.close
                 
-                # 打印当前行的日期和看跌背离信息
-                # 如果当前的计算机时间跟 dataframe 的时间相差在小于等于30分钟以内，打印出来以便调试
-                current_time = datetime.now(timezone.utc)
-                if abs((current_time - row.date).total_seconds()) <= 3600 * 4:
-                    print(f"Date: {row.date}, Bearish Divergence Close: {row.close}, current date: {current_time}")
+                # # 打印当前行的日期和看跌背离信息
+                # # 如果当前的计算机时间跟 dataframe 的时间相差在小于等于30分钟以内，打印出来以便调试
+                # current_time = datetime.now(timezone.utc)
+                # if abs((current_time - row.date).total_seconds()) <= 3600 * 4:
+                #     print(f"Date: {row.date}, Bearish Divergence Close: {row.close}, current date: {current_time}")
                 
                 # # 打印df的tail3信息，
                 # print(f"DataFrame tail 3 rows:\n{dataframe.tail(3)}")
@@ -750,7 +750,7 @@ def divergence_finder_dataframe(dataframe: DataFrame, indicator_source: str) -> 
                     point = bullish_prev_pivot + (bullish_current_pivot - bullish_prev_pivot) * i / length
                     indicator_point =  bullish_ind_prev_pivot + (bullish_ind_current_pivot - bullish_ind_prev_pivot) * i / length
                     if i != 0 and i != length:
-                        if (point >= dataframe['close'][prev_pivot + i] 
+                        if (point >= dataframe['close'][prev_pivot + i]
                         or indicator_point >= dataframe[indicator_source][prev_pivot + i]):
                             can_exist = False
                     if not np.isnan(actual_bullish_lines[prev_pivot + i]):
@@ -775,10 +775,31 @@ def divergence_finder_dataframe(dataframe: DataFrame, indicator_source: str) -> 
     return (bearish_divergences, bearish_lines, bullish_divergences, bullish_lines)
 
 def bearish_divergence_finder(dataframe, indicator, high_iterator, index):
+    # high_iterator 是一个数组，长度等于 DataFrame
+    # 对于非枢轴点位置，high_iterator[i] 存储的是上一个枢轴点的索引
+    # 对于枢轴点位置，high_iterator[i] == i（指向自己）
+    # 只在枢轴高点位置才检测背离
     if high_iterator[index] == index:
         current_pivot = high_iterator[index]
+
+        ## 示例:
+        # high_iterator = [0, 0, 0, 5, 5, 5, 10, 10, 15, 15, 15]
+
+        # # 执行 dict.fromkeys()
+        # dict.fromkeys(high_iterator)
+        # # 结果: {0: None, 5: None, 10: None, 15: None}
+
+        # # 转为列表
+        # occurences = [0, 5, 10, 15]
+
         occurences = list(dict.fromkeys(high_iterator))
+
+        # occurences 现在包含所有枢轴高点的索引，按时间顺序排列
+        # 例如：[0, 5, 10, 15, 20, 25] 表示第0、5、10、15、20、25根K线是枢轴高点
+        # 知道当前枢轴点在枢轴点列表中的位置
         current_index = occurences.index(high_iterator[index])
+        
+        # 向前查找历史枢轴点, 最多查找5个
         for i in range(current_index-1,current_index-6,-1):            
             prev_pivot = occurences[i]
             if np.isnan(prev_pivot):
