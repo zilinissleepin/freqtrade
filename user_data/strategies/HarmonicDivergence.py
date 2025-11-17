@@ -473,19 +473,19 @@ class HarmonicDivergence(IStrategy):
         做空退出：检测到看涨背离
 
         """
-        dataframe.loc[
-            (
-                dataframe[resample('total_bearish_divergences')].notna() &
-                (dataframe[resample('total_bearish_divergences')] > 0)
-            ),
-            'exit_long'] = 1
+        # dataframe.loc[
+        #     (
+        #         dataframe[resample('total_bearish_divergences')].notna() &
+        #         (dataframe[resample('total_bearish_divergences')] > 0)
+        #     ),
+        #     'exit_long'] = 1
 
-        dataframe.loc[
-            (
-                dataframe[resample('total_bullish_divergences')].notna() &
-                (dataframe[resample('total_bullish_divergences')] > 0)
-            ),
-            'exit_short'] = 1
+        # dataframe.loc[
+        #     (
+        #         dataframe[resample('total_bullish_divergences')].notna() &
+        #         (dataframe[resample('total_bullish_divergences')] > 0)
+        #     ),
+        #     'exit_short'] = 1
 
         return dataframe
         
