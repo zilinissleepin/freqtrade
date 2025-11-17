@@ -712,9 +712,7 @@ def divergence_finder_dataframe(dataframe: DataFrame, indicator_source: str) -> 
                 # 打印当前行的日期和看跌背离信息
                 # 如果当前的计算机时间跟 dataframe 的时间相差在小于等于30分钟以内，打印出来以便调试
                 current_time = datetime.now(timezone.utc)
-                print(f"Current time: {current_time}, Row date: {row.date}")
-                print(abs((current_time - row.date).total_seconds()))
-                if abs((current_time - row.date).total_seconds()) <= 1800:
+                if abs((current_time - row.date).total_seconds()) <= 3600 * 4:
                     print(f"Date: {row.date}, Bearish Divergence Close: {row.close}, current date: {current_time}")
                 
                 # # 打印df的tail3信息，
