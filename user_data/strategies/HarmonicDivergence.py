@@ -503,7 +503,7 @@ class HarmonicDivergence(IStrategy):
         if not hasattr(self, 'printed_hours'):
             self.printed_hours = set()
         if (pair, current_hour) not in self.printed_hours:
-            print(f"tail 5 of dataframe({pair}):\n{dataframe.tail(5)}")
+            print(f"tail 200 of dataframe({pair}):\n{dataframe.tail(200).to_string()}")
             self.printed_hours.add((pair, current_hour))
 
         # 如果持有多头仓位，检测看空背离
