@@ -496,14 +496,13 @@ class HarmonicDivergence(IStrategy):
 
         # 获取最新的 K 线数据（已收盘的 K 线）
         last_candle = dataframe.iloc[-1]
-        print(f"{pair} custom_exit: last_candle time: {last_candle['date']}, open: {last_candle['open']}, close: {last_candle['close']}")
-        print(f"{pair} custom_exit: dataframe length: {len(dataframe)}, df tail:\n{dataframe.tail(3)}, df head:\n{dataframe.head(3)}")
+        # print(f"{pair} custom_exit: last_candle time: {last_candle['date']}, open: {last_candle['open']}, close: {last_candle['close']}")
 
         # 如果持有多头仓位，检测看空背离
         if not trade.is_short:
             # 检查最新 K 线是否有看空背离信号
             bearish_divergences = last_candle.get(resample('total_bearish_divergences'), 0)
-            print(f"{pair} custom_exit: bearish_divergences: {bearish_divergences}")
+            # print(f"{pair} custom_exit: bearish_divergences: {bearish_divergences}")
 
             if not pd.isna(bearish_divergences) and bearish_divergences > 0:
                 # 检测到看空背离，平仓
@@ -705,6 +704,12 @@ def divergence_finder_dataframe(dataframe: DataFrame, indicator_source: str) -> 
                 current_time = datetime.now(timezone.utc)
                 if abs((current_time - row.date).total_seconds()) <= 1800:
                     print(f"Date: {row.date}, Bearish Divergence Close: {row.close}, current date: {current_time}")
+                
+                # # 打印df的tail3信息，
+                # print(f"DataFrame tail 3 rows:\n{dataframe.tail(3)}")
+
+                # 打印背离统计数量
+                print(f"Total Bearish Divergences Count: {dataframe['total_bearish_divergences_count'].sum()}")
 
                 _append_divergence_metadata(
                     index,
