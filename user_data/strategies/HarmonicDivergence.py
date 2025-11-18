@@ -463,14 +463,22 @@ class HarmonicDivergence(IStrategy):
             ),
             'enter_long'] = 1
 
-        # # 做空入场信号：检测看空背离
-        # dataframe.loc[
-        #     (
-        #         (dataframe[resample('total_bearish_divergences')] > 0)
-        #         & two_bands_check(dataframe)
-        #         & (dataframe['volume'] > 0)
-        #     ),
-        #     'enter_short'] = 1
+        # 做空入场信号：检测看空背离
+        dataframe.loc[
+            (
+                (dataframe[resample('total_bearish_divergences')].shift() > 0)  # 使用shift避免未来函数
+                & (
+                    # 趋势过滤：下降趋势或在阻力位附近
+                    (dataframe['close'] < dataframe[resample('ema50')])  # 价格在EMA50之下（下降趋势）
+                    | (keltner_upperband_check(dataframe))  # 或触及Keltner上轨（阻力位）
+                    | (bollinger_upperband_check(dataframe))  # 或触及布林带上轨（阻力位）
+                )
+                & (dataframe[resample('rsi')] > 50)  # RSI在中性区域以上，避免在超卖区域做空
+                & (dataframe[resample('rsi')] < 80)  # RSI不过于超买，避免追高
+                & two_bands_check(dataframe)  # 排除极端波动
+                & (dataframe['volume'] > 0)  # Make sure Volume is not 0
+            ),
+            'enter_short'] = 1
 
         return dataframe
 
@@ -500,11 +508,11 @@ class HarmonicDivergence(IStrategy):
             ),
             'exit_long'] = 1
 
-        # dataframe.loc[
-        #     (
-        #         (dataframe[resample('total_bullish_divergences')].shift() > 0)
-        #     ),
-        #     'exit_short'] = 1
+        dataframe.loc[
+            (
+                (dataframe[resample('total_bullish_divergences')].shift() > 0)
+            ),
+            'exit_short'] = 1
 
         return dataframe
         
@@ -563,13 +571,29 @@ class HarmonicDivergence(IStrategy):
                             current_rate: float, current_profit: float, **kwargs) -> float:
 
         dataframe, _ = self.dp.get_analyzed_dataframe(pair, self.timeframe)
-        stoploss = 999999
 
         entry_candle = dataframe.loc[dataframe['date'] <= trade.open_date_utc].iloc[-1]
-        stoploss_price = entry_candle[resample('low')] - entry_candle[resample('atr')]
-        if stoploss_price < current_rate:
-            return (stoploss_price / current_rate) - 1
-        return None  # 保持当前止损
+
+        # 区分多空方向
+        if not trade.is_short:  # 多单止损逻辑
+            stoploss_price = entry_candle[resample('low')] - entry_candle[resample('atr')]
+
+            # 如果当前价格还在止损价之上，使用动态止损
+            if current_rate > stoploss_price:
+                return (stoploss_price / current_rate) - 1
+            else:
+                # 已跌破止损，立即平仓
+                return -0.99
+
+        else:  # 空单止损逻辑
+            stoploss_price = entry_candle[resample('high')] + entry_candle[resample('atr')]
+
+            # 做空：如果当前价格还在止损价之下，使用动态止损
+            if current_rate < stoploss_price:
+                return (stoploss_price / current_rate) - 1
+            else:
+                # 已突破止损，立即平仓
+                return -0.99
 
 def resample(indicator):
     # return "resample_15_" + indicator
@@ -608,6 +632,21 @@ def bollinger_lowerband_check(dataframe):
 
 def bollinger_keltner_check(dataframe):
     return (dataframe[resample('bollinger_lowerband')] < dataframe[resample('kc_lowerband')]) & (dataframe[resample('bollinger_upperband')] > dataframe[resample('kc_upperband')])
+
+def keltner_upperband_check(dataframe):
+    """检查价格是否触及或接近Keltner上轨（阻力位）"""
+    return (dataframe[resample('low')] < dataframe[resample('kc_upperband')]) & (dataframe[resample('high')] > dataframe[resample('kc_upperband')])
+
+def bollinger_upperband_check(dataframe):
+    """检查价格是否触及或接近布林带上轨（阻力位）"""
+    return (dataframe[resample('low')] < dataframe[resample('bollinger_upperband')]) & (dataframe[resample('high')] > dataframe[resample('bollinger_upperband')])
+
+def downtrend_check(dataframe):
+    """检查是否处于下降趋势：EMA9 < EMA20 < EMA50"""
+    return (
+        (dataframe[resample('ema9')] < dataframe[resample('ema20')])
+        & (dataframe[resample('ema20')] < dataframe[resample('ema50')])
+    )
 
 def ema_check(dataframe):
     check = (
