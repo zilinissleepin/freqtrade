@@ -436,7 +436,7 @@ class HarmonicDivergence(IStrategy):
         """
         dataframe.loc[
             (
-                (dataframe[resample('total_bullish_divergences')] > 0)
+                (dataframe[resample('total_bullish_divergences')].shift() > 0)
                 # (dataframe[resample('total_bullish_divergences')] > 0)
                 # # & (dataframe['high'] > dataframe['high'].shift())
                 # & (
@@ -487,17 +487,15 @@ class HarmonicDivergence(IStrategy):
         
         dataframe.loc[
             (
-                dataframe[resample('total_bearish_divergences')].notna() &
-                (dataframe[resample('total_bearish_divergences')] > 0)
+                (dataframe[resample('total_bearish_divergences')].shift() > 0)
             ),
             'exit_long'] = 1
 
-        dataframe.loc[
-            (
-                dataframe[resample('total_bullish_divergences')].notna() &
-                (dataframe[resample('total_bullish_divergences')] > 0)
-            ),
-            'exit_short'] = 1
+        # dataframe.loc[
+        #     (
+        #         (dataframe[resample('total_bullish_divergences')].shift() > 0)
+        #     ),
+        #     'exit_short'] = 1
 
         return dataframe
         
@@ -936,3 +934,225 @@ def chaikin_money_flow(dataframe, n=20, fillna=False) -> Series:
     if fillna:
         cmf = cmf.replace([np.inf, -np.inf], np.nan).fillna(0)
     return Series(cmf, name='cmf')
+
+
+def has_upper_shadow(dataframe, threshold=0.6, fillna=False) -> Series:
+    """检测上影线（长上影线K线）
+
+    上影线K线特征：
+    - 上影线长度占K线总长度的比例 > threshold
+    - 通常表示上方压力较大，可能是卖出信号
+
+    Args:
+        dataframe(pandas.DataFrame): dataframe containing ohlcv
+        threshold(float): 上影线长度阈值（占K线总长度的比例），默认0.6（60%）
+        fillna(bool): if True, fill nan values with False
+
+    Returns:
+        pandas.Series: True/False series indicating upper shadow candles
+    """
+    df = dataframe.copy()
+
+    # K线总长度
+    candle_range = df['high'] - df['low']
+
+    # 上影线长度
+    upper_shadow = df['high'] - df[['open', 'close']].max(axis=1)
+
+    # 计算上影线占比
+    upper_shadow_ratio = upper_shadow / candle_range
+
+    # 处理除零情况（一字线）
+    upper_shadow_ratio = upper_shadow_ratio.fillna(0.0)
+
+    # 判断是否为长上影线
+    result = upper_shadow_ratio > threshold
+
+    if fillna:
+        result = result.fillna(False)
+
+    return Series(result, name='has_upper_shadow')
+
+
+def is_doji(dataframe, threshold=0.1, fillna=False) -> Series:
+    """检测十字线（Doji）
+
+    十字线特征：
+    - 实体很小（开盘价≈收盘价）
+    - 实体长度 < K线总长度 * threshold
+    - 通常表示市场犹豫不决，趋势可能反转
+
+    Args:
+        dataframe(pandas.DataFrame): dataframe containing ohlcv
+        threshold(float): 实体长度阈值（占K线总长度的比例），默认0.1（10%）
+        fillna(bool): if True, fill nan values with False
+
+    Returns:
+        pandas.Series: True/False series indicating doji candles
+    """
+    df = dataframe.copy()
+
+    # K线总长度
+    candle_range = df['high'] - df['low']
+
+    # 实体长度
+    body_length = (df['close'] - df['open']).abs()
+
+    # 计算实体占比
+    body_ratio = body_length / candle_range
+
+    # 处理除零情况（一字线也是十字线的一种）
+    body_ratio = body_ratio.fillna(0.0)
+
+    # 判断是否为十字线
+    result = body_ratio < threshold
+
+    if fillna:
+        result = result.fillna(False)
+
+    return Series(result, name='is_doji')
+
+
+def is_four_price_doji(dataframe, fillna=False) -> Series:
+    """检测一字线（Four Price Doji）
+
+    一字线特征：
+    - open = close = high = low
+    - 表示市场完全没有波动，通常在停牌或极端情况下出现
+
+    Args:
+        dataframe(pandas.DataFrame): dataframe containing ohlcv
+        fillna(bool): if True, fill nan values with False
+
+    Returns:
+        pandas.Series: True/False series indicating four price doji candles
+    """
+    df = dataframe.copy()
+
+    # 判断四个价格是否相等
+    result = (
+        (df['open'] == df['close']) &
+        (df['open'] == df['high']) &
+        (df['open'] == df['low'])
+    )
+
+    if fillna:
+        result = result.fillna(False)
+
+    return Series(result, name='is_four_price_doji')
+
+
+def is_dragonfly_doji(dataframe, body_threshold=0.1, upper_shadow_threshold=0.1,
+                      lower_shadow_threshold=0.6, fillna=False) -> Series:
+    """检测上T字线 / 蜻蜓十字线（Dragonfly Doji）
+
+    上T字线特征：
+    - 有长下影线（通常 > 60% K线长度）
+    - 几乎没有上影线（< 10% K线长度）
+    - 实体很小（< 10% K线长度）
+    - 开盘价、收盘价都接近最高价
+    - 通常出现在下跌趋势底部，是看涨反转信号
+
+    Args:
+        dataframe(pandas.DataFrame): dataframe containing ohlcv
+        body_threshold(float): 实体长度阈值，默认0.1（10%）
+        upper_shadow_threshold(float): 上影线长度阈值，默认0.1（10%）
+        lower_shadow_threshold(float): 下影线长度阈值，默认0.6（60%）
+        fillna(bool): if True, fill nan values with False
+
+    Returns:
+        pandas.Series: True/False series indicating dragonfly doji candles
+    """
+    df = dataframe.copy()
+
+    # K线总长度
+    candle_range = df['high'] - df['low']
+
+    # 实体长度
+    body_length = (df['close'] - df['open']).abs()
+
+    # 上影线长度
+    upper_shadow = df['high'] - df[['open', 'close']].max(axis=1)
+
+    # 下影线长度
+    lower_shadow = df[['open', 'close']].min(axis=1) - df['low']
+
+    # 计算各部分占比
+    body_ratio = body_length / candle_range
+    upper_shadow_ratio = upper_shadow / candle_range
+    lower_shadow_ratio = lower_shadow / candle_range
+
+    # 处理除零情况
+    body_ratio = body_ratio.fillna(0.0)
+    upper_shadow_ratio = upper_shadow_ratio.fillna(0.0)
+    lower_shadow_ratio = lower_shadow_ratio.fillna(0.0)
+
+    # 判断是否为上T字线
+    result = (
+        (body_ratio < body_threshold) &            # 实体小
+        (upper_shadow_ratio < upper_shadow_threshold) &  # 上影线小
+        (lower_shadow_ratio > lower_shadow_threshold)    # 下影线长
+    )
+
+    if fillna:
+        result = result.fillna(False)
+
+    return Series(result, name='is_dragonfly_doji')
+
+
+def is_gravestone_doji(dataframe, body_threshold=0.1, lower_shadow_threshold=0.1,
+                       upper_shadow_threshold=0.6, fillna=False) -> Series:
+    """检测下T字线 / 墓碑十字线（Gravestone Doji）
+
+    下T字线特征：
+    - 有长上影线（通常 > 60% K线长度）
+    - 几乎没有下影线（< 10% K线长度）
+    - 实体很小（< 10% K线长度）
+    - 开盘价、收盘价都接近最低价
+    - 通常出现在上涨趋势顶部，是看跌反转信号
+
+    Args:
+        dataframe(pandas.DataFrame): dataframe containing ohlcv
+        body_threshold(float): 实体长度阈值，默认0.1（10%）
+        lower_shadow_threshold(float): 下影线长度阈值，默认0.1（10%）
+        upper_shadow_threshold(float): 上影线长度阈值，默认0.6（60%）
+        fillna(bool): if True, fill nan values with False
+
+    Returns:
+        pandas.Series: True/False series indicating gravestone doji candles
+    """
+    df = dataframe.copy()
+
+    # K线总长度
+    candle_range = df['high'] - df['low']
+
+    # 实体长度
+    body_length = (df['close'] - df['open']).abs()
+
+    # 上影线长度
+    upper_shadow = df['high'] - df[['open', 'close']].max(axis=1)
+
+    # 下影线长度
+    lower_shadow = df[['open', 'close']].min(axis=1) - df['low']
+
+    # 计算各部分占比
+    body_ratio = body_length / candle_range
+    upper_shadow_ratio = upper_shadow / candle_range
+    lower_shadow_ratio = lower_shadow / candle_range
+
+    # 处理除零情况
+    body_ratio = body_ratio.fillna(0.0)
+    upper_shadow_ratio = upper_shadow_ratio.fillna(0.0)
+    lower_shadow_ratio = lower_shadow_ratio.fillna(0.0)
+
+    # 判断是否为下T字线
+    result = (
+        (body_ratio < body_threshold) &            # 实体小
+        (lower_shadow_ratio < lower_shadow_threshold) &  # 下影线小
+        (upper_shadow_ratio > upper_shadow_threshold)    # 上影线长
+    )
+
+    if fillna:
+        result = result.fillna(False)
+
+    return Series(result, name='is_gravestone_doji')
