@@ -467,14 +467,14 @@ class HarmonicDivergence(IStrategy):
         dataframe.loc[
             (
                 (dataframe[resample('total_bearish_divergences')].shift() > 0)  # 使用shift避免未来函数
-                & (
-                    # 趋势过滤：下降趋势或在阻力位附近
-                    (dataframe['close'] < dataframe[resample('ema50')])  # 价格在EMA50之下（下降趋势）
-                    | (keltner_upperband_check(dataframe))  # 或触及Keltner上轨（阻力位）
-                    | (bollinger_upperband_check(dataframe))  # 或触及布林带上轨（阻力位）
-                )
-                & (dataframe[resample('rsi')] > 50)  # RSI在中性区域以上，避免在超卖区域做空
-                & (dataframe[resample('rsi')] < 80)  # RSI不过于超买，避免追高
+                # & (
+                #     # 趋势过滤：下降趋势或在阻力位附近
+                #     (dataframe['close'] < dataframe[resample('ema50')])  # 价格在EMA50之下（下降趋势）
+                #     | (keltner_upperband_check(dataframe))  # 或触及Keltner上轨（阻力位）
+                #     | (bollinger_upperband_check(dataframe))  # 或触及布林带上轨（阻力位）
+                # )
+                # & (dataframe[resample('rsi')] > 50)  # RSI在中性区域以上，避免在超卖区域做空
+                # & (dataframe[resample('rsi')] < 80)  # RSI不过于超买，避免追高
                 & two_bands_check(dataframe)  # 排除极端波动
                 & (dataframe['volume'] > 0)  # Make sure Volume is not 0
             ),
