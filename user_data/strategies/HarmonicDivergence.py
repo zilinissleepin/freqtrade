@@ -368,6 +368,7 @@ class HarmonicDivergence(IStrategy):
         informative['ema200'] = ta.EMA(informative, timeperiod=200)        
         
         pivots = pivot_points(informative)
+        # pivots = pivot_points(informative, pivot_source=PivotSource.HighLow)
         informative['pivot_lows'] = pivots['pivot_lows']
         informative['pivot_highs'] = pivots['pivot_highs']
 
@@ -408,6 +409,14 @@ class HarmonicDivergence(IStrategy):
         #         print(value)
         #         print(dataframe[resample("total_bullish_divergences")][index])
         #         print(dataframe[resample("total_bullish_divergences_names")][index])
+        # K线形态检测
+        informative['has_upper_shadow'] = has_upper_shadow(informative, threshold=0.6)
+        informative['has_lower_shadow'] = has_lower_shadow(informative, threshold=0.6)
+        informative['is_doji'] = is_doji(informative, threshold=0.1)
+        informative['is_four_price_doji'] = is_four_price_doji(informative)
+        informative['is_dragonfly_doji'] = is_dragonfly_doji(informative)
+        informative['is_gravestone_doji'] = is_gravestone_doji(informative)
+
         HarmonicDivergence.plot_config = (
             PlotConfig()
             .add_pivots_in_config()
@@ -972,6 +981,44 @@ def has_upper_shadow(dataframe, threshold=0.6, fillna=False) -> Series:
         result = result.fillna(False)
 
     return Series(result, name='has_upper_shadow')
+
+
+def has_lower_shadow(dataframe, threshold=0.6, fillna=False) -> Series:
+    """检测下影线（长下影线K线）
+
+    下影线K线特征：
+    - 下影线长度占K线总长度的比例 > threshold
+    - 通常表示下方支撑较强，可能是买入信号
+
+    Args:
+        dataframe(pandas.DataFrame): dataframe containing ohlcv
+        threshold(float): 下影线长度阈值（占K线总长度的比例），默认0.6（60%）
+        fillna(bool): if True, fill nan values with False
+
+    Returns:
+        pandas.Series: True/False series indicating lower shadow candles
+    """
+    df = dataframe.copy()
+
+    # K线总长度
+    candle_range = df['high'] - df['low']
+
+    # 下影线长度
+    lower_shadow = df[['open', 'close']].min(axis=1) - df['low']
+
+    # 计算下影线占比
+    lower_shadow_ratio = lower_shadow / candle_range
+
+    # 处理除零情况（一字线）
+    lower_shadow_ratio = lower_shadow_ratio.fillna(0.0)
+
+    # 判断是否为长下影线
+    result = lower_shadow_ratio > threshold
+
+    if fillna:
+        result = result.fillna(False)
+
+    return Series(result, name='has_lower_shadow')
 
 
 def is_doji(dataframe, threshold=0.1, fillna=False) -> Series:
