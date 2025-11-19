@@ -76,19 +76,6 @@ class PlotConfig():
                 }
             }
         }
-        self.config['main_plot']["pivot_highs"] = {
-            "plotly": {
-                'mode': 'markers',
-                'marker': {
-                    'symbol': 'diamond-open',
-                    'size': 11,
-                    'line': {
-                        'width': 2
-                    },
-                    'color': 'violet'
-                }
-            }
-        }
         return self
 
     def add_divergence_in_config(self, indicator:str):
