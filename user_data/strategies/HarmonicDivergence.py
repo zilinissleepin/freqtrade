@@ -78,6 +78,34 @@ class PlotConfig():
         }
         return self
 
+    def add_tentative_pivots_in_config(self):
+        # 临时枢轴低点 - 使用半透明浅绿色
+        self.config['main_plot']["pivot_lows_tentative"] = {
+            "plotly": {
+                'mode': 'markers',
+                'marker': {
+                    'symbol': 'circle-open',       # 空心圆圈（区别于确认的钻石）
+                    'size': 9,                      # 稍小（区别于确认的11）
+                    'line': {'width': 1.5},         # 更细的线（区别于确认的2）
+                    'color': 'rgba(144, 238, 144, 0.6)'  # 浅绿色，60%透明度
+                }
+            }
+        }
+
+        # 临时枢轴高点 - 使用半透明浅珊瑚色
+        self.config['main_plot']["pivot_highs_tentative"] = {
+            "plotly": {
+                'mode': 'markers',
+                'marker': {
+                    'symbol': 'circle-open',
+                    'size': 9,
+                    'line': {'width': 1.5},
+                    'color': 'rgba(240, 128, 128, 0.6)'  # 浅珊瑚色，60%透明度
+                }
+            }
+        }
+        return self
+
     def add_divergence_in_config(self, indicator:str):
         self.config['main_plot']["bullish_divergence_" + indicator + "_occurence"] = {
             "plotly": {
@@ -176,7 +204,82 @@ class PlotConfig():
             }
         }
         return self
-        
+
+    def add_tentative_divergences_in_config(self, dataframe):
+        # 处理临时看涨背离
+        tentative_bullish_count = dataframe[resample("total_bullish_divergences_count_tentative")]
+        tentative_bullish_names = dataframe[resample("total_bullish_divergences_names_tentative")]
+
+        # 去掉startup部分
+        tentative_bullish_count = tentative_bullish_count[self.startup_candle_count_offset:]
+        tentative_bullish_names = tentative_bullish_names[self.startup_candle_count_offset:]
+
+        print(f"tentative_bullish_count after offset: {tentative_bullish_count}")
+        print(f"tentative_bullish_names after offset: {tentative_bullish_names}")
+        # 检查两个df中是否有有效值
+        valid_bullish_count = tentative_bullish_count.dropna()
+        valid_bullish_names = tentative_bullish_names[tentative_bullish_names != ""]
+        print(f"[临时看涨背离] 有效count数量: {len(valid_bullish_count)}")
+        if len(valid_bullish_count) > 0:
+            print(f"  有效count索引: {valid_bullish_count.index.tolist()}")
+            print(f"  有效count值: {valid_bullish_count.values.tolist()}")
+        print(f"[临时看涨背离] 有效names数量: {len(valid_bullish_names)}")
+        if len(valid_bullish_names) > 0:
+            print(f"  有效names索引: {valid_bullish_names.index.tolist()}")
+            print(f"  有效names值: {valid_bullish_names.values.tolist()}")
+
+        self.config['main_plot'][resample("total_bullish_divergences_tentative")] = {
+            "plotly": {
+                'mode': 'markers+text',
+                'text': tentative_bullish_count.apply(lambda x: f"T{int(x)}" if pd.notna(x) else ""),  # 加 "T" 前缀表示临时
+                'hovertext': tentative_bullish_names,
+                'textfont': {'size': 9, 'color': 'rgba(144, 238, 144, 0.8)'},  # 浅绿色，稍小字体
+                'textposition': 'bottom center',
+                'marker': {
+                    'symbol': 'circle',            # 圆圈（区别于确认的钻石）
+                    'size': 9,                     # 稍小
+                    'line': {'width': 1.5},
+                    'color': 'rgba(144, 238, 144, 0.6)'  # 浅绿色，60%透明度
+                }
+            }
+        }
+
+        # 处理临时看跌背离
+        tentative_bearish_count = dataframe[resample("total_bearish_divergences_count_tentative")]
+        tentative_bearish_names = dataframe[resample("total_bearish_divergences_names_tentative")]
+
+        tentative_bearish_count = tentative_bearish_count[self.startup_candle_count_offset:]
+        tentative_bearish_names = tentative_bearish_names[self.startup_candle_count_offset:]
+
+        # 检查两个df中是否有有效值
+        valid_bearish_count = tentative_bearish_count.dropna()
+        valid_bearish_names = tentative_bearish_names[tentative_bearish_names != ""]
+        print(f"[临时看跌背离] 有效count数量: {len(valid_bearish_count)}")
+        if len(valid_bearish_count) > 0:
+            print(f"  有效count索引: {valid_bearish_count.index.tolist()}")
+            print(f"  有效count值: {valid_bearish_count.values.tolist()}")
+        print(f"[临时看跌背离] 有效names数量: {len(valid_bearish_names)}")
+        if len(valid_bearish_names) > 0:
+            print(f"  有效names索引: {valid_bearish_names.index.tolist()}")
+            print(f"  有效names值: {valid_bearish_names.values.tolist()}")
+
+        self.config['main_plot'][resample("total_bearish_divergences_tentative")] = {
+            "plotly": {
+                'mode': 'markers+text',
+                'text': tentative_bearish_count.apply(lambda x: f"T{int(x)}" if pd.notna(x) else ""),  # 加 "T" 前缀
+                'hovertext': tentative_bearish_names,
+                'textfont': {'size': 9, 'color': 'rgba(240, 128, 128, 0.8)'},  # 浅珊瑚色
+                'textposition': 'top center',
+                'marker': {
+                    'symbol': 'circle',
+                    'size': 9,
+                    'line': {'width': 1.5},
+                    'color': 'rgba(240, 128, 128, 0.6)'  # 浅珊瑚色，60%透明度
+                }
+            }
+        }
+        return self
+
 class HarmonicDivergence(IStrategy):
     """
     This is a strategy template to get you started.
@@ -309,75 +412,128 @@ class HarmonicDivergence(IStrategy):
         informative = dataframe
         # Momentum Indicators
         # ------------------------------------
+        # 批量计算所有指标，然后一次性添加到DataFrame，避免碎片化
 
-        # RSI
-        informative['rsi'] = ta.RSI(informative)
-        # Stochastic Slow
-        informative['stoch'] = ta.STOCH(informative)['slowk']
-        # ROC
-        informative['roc'] = ta.ROC(informative)
-        # Ultimate Oscillator
-        informative['uo'] = ta.ULTOSC(informative)
-        # Awesome Oscillator
-        informative['ao'] = qtpylib.awesome_oscillator(informative)
-        # MACD
-        informative['macd'] = ta.MACD(informative)['macd']
-        # Commodity Channel Index
-        informative['cci'] = ta.CCI(informative)
-        # CMF
-        informative['cmf'] = chaikin_money_flow(informative, 20)
-        # OBV
-        informative['obv'] = ta.OBV(informative)
-        # MFI
-        informative['mfi'] = ta.MFI(informative)
-        # ADX
-        informative['adx'] = ta.ADX(informative)
-
-        # ATR
-        informative['atr'] = qtpylib.atr(informative, window=14, exp=False)
-
-        # Keltner Channel
-        # keltner = qtpylib.keltner_channel(dataframe, window=20, atrs=1)
+        # 计算所有动量指标
         keltner = emaKeltner(informative)
-        informative["kc_upperband"] = keltner["upper"]
-        informative["kc_middleband"] = keltner["mid"]
-        informative["kc_lowerband"] = keltner["lower"]
-
-        # Bollinger Bands
         bollinger = qtpylib.bollinger_bands(qtpylib.typical_price(informative), window=20, stds=2)
-        informative['bollinger_upperband'] = bollinger['upper']
-        informative['bollinger_lowerband'] = bollinger['lower']
 
-        # EMA - Exponential Moving Average
-        informative['ema9'] = ta.EMA(informative, timeperiod=9)
-        informative['ema20'] = ta.EMA(informative, timeperiod=20)
-        informative['ema50'] = ta.EMA(informative, timeperiod=50)
-        informative['ema200'] = ta.EMA(informative, timeperiod=200)        
-        
-        pivots = pivot_points(informative)
-        # pivots = pivot_points(informative, pivot_source=PivotSource.HighLow)
-        informative['pivot_lows'] = pivots['pivot_lows']
-        informative['pivot_highs'] = pivots['pivot_highs']
+        # 计算确认的枢轴点（需要左右各window根K线确认）
+        pivots_confirmed = pivot_points(informative)
+
+        # 计算临时枢轴点（模拟实盘交易场景，每根K线都是最新K线的情况）
+        pivots_tentative = compute_realtime_tentative_pivots(informative)
+
+        # 使用pd.concat一次性添加所有指标列
+        indicators_df = pd.DataFrame({
+            # Momentum indicators
+            'rsi': ta.RSI(informative),
+            'stoch': ta.STOCH(informative)['slowk'],
+            'roc': ta.ROC(informative),
+            'uo': ta.ULTOSC(informative),
+            'ao': qtpylib.awesome_oscillator(informative),
+            'macd': ta.MACD(informative)['macd'],
+            'cci': ta.CCI(informative),
+            'cmf': chaikin_money_flow(informative, 20),
+            'obv': ta.OBV(informative),
+            'mfi': ta.MFI(informative),
+            'adx': ta.ADX(informative),
+            # ATR
+            'atr': qtpylib.atr(informative, window=14, exp=False),
+            # Keltner Channel
+            'kc_upperband': keltner["upper"],
+            'kc_middleband': keltner["mid"],
+            'kc_lowerband': keltner["lower"],
+            # Bollinger Bands
+            'bollinger_upperband': bollinger['upper'],
+            'bollinger_lowerband': bollinger['lower'],
+            # EMA - Exponential Moving Average
+            'ema9': ta.EMA(informative, timeperiod=9),
+            'ema20': ta.EMA(informative, timeperiod=20),
+            'ema50': ta.EMA(informative, timeperiod=50),
+            'ema200': ta.EMA(informative, timeperiod=200),
+            # Pivot points - 确认的枢轴点
+            'pivot_lows': pivots_confirmed['pivot_lows'],
+            'pivot_highs': pivots_confirmed['pivot_highs'],
+            'pivot_lows_confirmed': pivots_confirmed['pivot_lows'],  # confirmed别名
+            'pivot_highs_confirmed': pivots_confirmed['pivot_highs'],  # confirmed别名
+            # Pivot points - 临时枢轴点（模拟实盘）
+            'pivot_lows_tentative': pivots_tentative['pivot_lows_tentative'],
+            'pivot_highs_tentative': pivots_tentative['pivot_highs_tentative']
+        }, index=informative.index)
+
+        # 一次性合并所有指标
+        informative = pd.concat([informative, indicators_df], axis=1)
+
+        # 打印临时枢轴点信息
+        tentative_lows_count = pivots_tentative['pivot_lows_tentative'].dropna()
+        tentative_highs_count = pivots_tentative['pivot_highs_tentative'].dropna()
+        print("populate_indicators - 临时枢轴点统计信息:")
+        print(f"[临时枢轴点] 临时低点数量: {len(tentative_lows_count)}")
+        if len(tentative_lows_count) > 0:
+            print(f"  临时低点索引: {tentative_lows_count.index.tolist()}")
+            print(f"  临时低点值: {tentative_lows_count.values.tolist()}")
+        print(f"[临时枢轴点] 临时高点数量: {len(tentative_highs_count)}")
+        if len(tentative_highs_count) > 0:
+            print(f"  临时高点索引: {tentative_highs_count.index.tolist()}")
+            print(f"  临时高点值: {tentative_highs_count.values.tolist()}")
 
         # Use the helper function merge_informative_pair to safely merge the pair
         # Automatically renames the columns and merges a shorter timeframe dataframe and a longer timeframe informative pair
         # use ffill to have the 1d value available in every row throughout the day.
         # Without this, comparisons between columns of the original and the informative pair would only work once per day.
         # Full documentation of this method, see below
- 
 
-        initialize_divergences_lists(informative)
-        add_divergences(informative, 'rsi')
-        add_divergences(informative, 'stoch')
-        add_divergences(informative, 'roc')
-        add_divergences(informative, 'uo')
-        add_divergences(informative, 'ao')
-        add_divergences(informative, 'macd')
-        add_divergences(informative, 'cci')
-        add_divergences(informative, 'cmf')
-        add_divergences(informative, 'obv')
-        add_divergences(informative, 'mfi')
-        add_divergences(informative, 'adx')
+
+        # 初始化常规背离列表（返回新DataFrame避免碎片化）
+        informative = initialize_divergences_lists(informative)
+        # 收集所有常规背离结果
+        divergence_results = {}
+        for indicator in ['rsi', 'stoch', 'roc', 'uo', 'ao', 'macd', 'cci', 'cmf', 'obv', 'mfi', 'adx']:
+            divergence_results.update(add_divergences(informative, indicator))
+        # 批量添加（返回新DataFrame避免碎片化）
+        informative = batch_add_divergences(informative, divergence_results)
+
+        # 初始化确认背离列表（基于确认枢轴点，返回新DataFrame避免碎片化）
+        informative = initialize_divergences_lists(informative, suffix='_confirmed')
+        # 收集所有确认背离结果
+        confirmed_divergence_results = {}
+        for indicator in ['rsi', 'stoch', 'roc', 'uo', 'ao', 'macd', 'cci', 'cmf', 'obv', 'mfi', 'adx']:
+            confirmed_divergence_results.update(
+                add_divergences_with_pivot(informative, indicator,
+                                          pivot_high_col='pivot_highs_confirmed',
+                                          pivot_low_col='pivot_lows_confirmed',
+                                          suffix='_confirmed')
+            )
+        # 批量添加（返回新DataFrame避免碎片化）
+        informative = batch_add_divergences(informative, confirmed_divergence_results)
+
+        # 初始化临时背离列表（基于临时枢轴点，返回新DataFrame避免碎片化）
+        informative = initialize_divergences_lists(informative, suffix='_tentative')
+        # 收集所有临时背离结果
+        tentative_divergence_results = {}
+        for indicator in ['rsi', 'stoch', 'roc', 'uo', 'ao', 'macd', 'cci', 'cmf', 'obv', 'mfi', 'adx']:
+            tentative_divergence_results.update(
+                add_divergences_with_pivot(informative, indicator,
+                                          pivot_high_col='pivot_highs_tentative',
+                                          pivot_low_col='pivot_lows_tentative',
+                                          suffix='_tentative')
+            )
+        # 批量添加（返回新DataFrame避免碎片化）
+        informative = batch_add_divergences(informative, tentative_divergence_results)
+
+        # 打印临时背离统计信息
+        tentative_bullish = informative['total_bullish_divergences_tentative'].dropna()
+        tentative_bearish = informative['total_bearish_divergences_tentative'].dropna()
+        print("populate_indicators - 临时背离统计信息:")
+        print(f"[临时背离] 看涨背离数量: {len(tentative_bullish)}")
+        if len(tentative_bullish) > 0:
+            print(f"  看涨背离索引: {tentative_bullish.index.tolist()}")
+            print(f"  看涨背离值: {tentative_bullish.values.tolist()}")
+        print(f"[临时背离] 看跌背离数量: {len(tentative_bearish)}")
+        if len(tentative_bearish) > 0:
+            print(f"  看跌背离索引: {tentative_bearish.index.tolist()}")
+            print(f"  看跌背离值: {tentative_bearish.values.tolist()}")
 
         # print("-------------------informative-------------------")
         # print(informative)
@@ -396,13 +552,19 @@ class HarmonicDivergence(IStrategy):
         #         print(value)
         #         print(dataframe[resample("total_bullish_divergences")][index])
         #         print(dataframe[resample("total_bullish_divergences_names")][index])
-        # K线形态检测
-        informative['has_upper_shadow'] = has_upper_shadow(informative, threshold=0.6)
-        informative['has_lower_shadow'] = has_lower_shadow(informative, threshold=0.6)
-        informative['is_doji'] = is_doji(informative, threshold=0.1)
-        informative['is_four_price_doji'] = is_four_price_doji(informative)
-        informative['is_dragonfly_doji'] = is_dragonfly_doji(informative)
-        informative['is_gravestone_doji'] = is_gravestone_doji(informative)
+        # K线形态检测 - 使用pd.concat批量添加避免碎片化
+        candle_patterns = pd.DataFrame({
+            'has_upper_shadow': has_upper_shadow(informative, threshold=0.6),
+            'has_lower_shadow': has_lower_shadow(informative, threshold=0.6),
+            'is_doji': is_doji(informative, threshold=0.1),
+            'is_four_price_doji': is_four_price_doji(informative),
+            'is_dragonfly_doji': is_dragonfly_doji(informative),
+            'is_gravestone_doji': is_gravestone_doji(informative)
+        }, index=informative.index)
+        informative = pd.concat([informative, candle_patterns], axis=1)
+
+        # 由于使用pd.concat返回新DataFrame，需要将informative同步回dataframe
+        dataframe = informative
 
         HarmonicDivergence.plot_config = (
             PlotConfig()
@@ -419,6 +581,8 @@ class HarmonicDivergence(IStrategy):
             .add_divergence_in_config('mfi')
             .add_divergence_in_config('adx')
             .add_total_divergences_in_config(dataframe)
+            .add_tentative_divergences_in_config(dataframe)
+            .add_tentative_pivots_in_config()
             .config)
 
         return dataframe
@@ -432,7 +596,11 @@ class HarmonicDivergence(IStrategy):
         """
         dataframe.loc[
             (
-                (dataframe[resample('total_bullish_divergences')].shift() > 0)
+                # 同时检测临时背离和确认背离（任一出现即触发）
+                (
+                    (dataframe[resample('total_bullish_divergences_tentative')].shift() > 0) |
+                    (dataframe[resample('total_bullish_divergences_confirmed')].shift() > 0)
+                )
                 # (dataframe[resample('total_bullish_divergences')] > 0)
                 # # & (dataframe['high'] > dataframe['high'].shift())
                 # & (
@@ -453,7 +621,11 @@ class HarmonicDivergence(IStrategy):
         # 做空入场信号：检测看空背离
         dataframe.loc[
             (
-                (dataframe[resample('total_bearish_divergences')].shift() > 0)  # 使用shift避免未来函数
+                # 同时检测临时背离和确认背离（任一出现即触发）
+                (
+                    (dataframe[resample('total_bearish_divergences_tentative')].shift() > 0) |
+                    (dataframe[resample('total_bearish_divergences_confirmed')].shift() > 0)
+                )
                 # & (
                 #     # 趋势过滤：下降趋势或在阻力位附近
                 #     (dataframe['close'] < dataframe[resample('ema50')])  # 价格在EMA50之下（下降趋势）
@@ -491,13 +663,21 @@ class HarmonicDivergence(IStrategy):
         
         dataframe.loc[
             (
-                (dataframe[resample('total_bearish_divergences')].shift() > 0)
+                # 同时检测临时背离和确认背离（任一出现即触发）
+                (
+                    (dataframe[resample('total_bearish_divergences_tentative')].shift() > 0) |
+                    (dataframe[resample('total_bearish_divergences_confirmed')].shift() > 0)
+                )
             ),
             'exit_long'] = 1
 
         dataframe.loc[
             (
-                (dataframe[resample('total_bullish_divergences')].shift() > 0)
+                # 同时检测临时背离和确认背离（任一出现即触发）
+                (
+                    (dataframe[resample('total_bullish_divergences_tentative')].shift() > 0) |
+                    (dataframe[resample('total_bullish_divergences_confirmed')].shift() > 0)
+                )
             ),
             'exit_short'] = 1
 
@@ -596,13 +776,14 @@ def two_bands_check(dataframe):
     return ~check
 
 def ema_cross_check(dataframe):
-    dataframe['ema20_50_cross'] = qtpylib.crossed_below(dataframe[resample('ema20')],dataframe[resample('ema50')])
-    dataframe['ema20_200_cross'] = qtpylib.crossed_below(dataframe[resample('ema20')],dataframe[resample('ema200')])
-    dataframe['ema50_200_cross'] = qtpylib.crossed_below(dataframe[resample('ema50')],dataframe[resample('ema200')])
+    # 使用局部变量避免向DataFrame添加列，减少碎片化
+    ema20_50_cross = qtpylib.crossed_below(dataframe[resample('ema20')],dataframe[resample('ema50')])
+    ema20_200_cross = qtpylib.crossed_below(dataframe[resample('ema20')],dataframe[resample('ema200')])
+    ema50_200_cross = qtpylib.crossed_below(dataframe[resample('ema50')],dataframe[resample('ema200')])
     return ~(
-        dataframe['ema20_50_cross'] 
-        | dataframe['ema20_200_cross'] 
-        | dataframe['ema50_200_cross'] 
+        ema20_50_cross
+        | ema20_200_cross
+        | ema50_200_cross
         )
 
 def green_candle(dataframe):
@@ -642,25 +823,58 @@ def ema_check(dataframe):
         & (dataframe[resample('ema50')] < dataframe[resample('ema200')]))
     return ~check
 
-def initialize_divergences_lists(dataframe: DataFrame):
+def initialize_divergences_lists(dataframe: DataFrame, suffix: str = '') -> DataFrame:
+    """初始化背离列表，返回新DataFrame避免碎片化"""
     row_count = len(dataframe)
-    dataframe["total_bullish_divergences"] = np.nan
-    dataframe["total_bullish_divergences_count"] = np.nan  # 修复：统一用 NaN 表示"无背离"
-    dataframe["total_bullish_divergences_names"] = [""] * row_count
-    dataframe["total_bearish_divergences"] = np.nan
-    dataframe["total_bearish_divergences_count"] = np.nan  # 修复：统一用 NaN 表示"无背离"
-    dataframe["total_bearish_divergences_names"] = [""] * row_count
+    # 使用pd.DataFrame创建所有新列
+    new_cols = pd.DataFrame({
+        f"total_bullish_divergences{suffix}": np.nan,
+        f"total_bullish_divergences_count{suffix}": np.nan,
+        f"total_bullish_divergences_names{suffix}": [""] * row_count,
+        f"total_bearish_divergences{suffix}": np.nan,
+        f"total_bearish_divergences_count{suffix}": np.nan,
+        f"total_bearish_divergences_names{suffix}": [""] * row_count
+    }, index=dataframe.index)
+
+    # 使用pd.concat一次性合并，避免循环导致的碎片化
+    return pd.concat([dataframe, new_cols], axis=1)
 
 def add_divergences(dataframe: DataFrame, indicator: str):
     (bearish_divergences, bearish_lines, bullish_divergences, bullish_lines) = divergence_finder_dataframe(dataframe, indicator)
-    dataframe['bearish_divergence_' + indicator + '_occurence'] = bearish_divergences
-    # for index, bearish_line in enumerate(bearish_lines):
-    #     dataframe['bearish_divergence_' + indicator + '_line_'+ str(index)] = bearish_line
-    dataframe['bullish_divergence_' + indicator + '_occurence'] = bullish_divergences
-    # for index, bullish_line in enumerate(bullish_lines):
-    #     dataframe['bullish_divergence_' + indicator + '_line_'+ str(index)] = bullish_line
+    return {
+        'bearish_divergence_' + indicator + '_occurence': bearish_divergences,
+        'bullish_divergence_' + indicator + '_occurence': bullish_divergences
+    }
 
-def divergence_finder_dataframe(dataframe: DataFrame, indicator_source: str) -> Tuple[pd.Series, pd.Series]:
+def add_divergences_with_pivot(dataframe: DataFrame, indicator: str, pivot_high_col: str, pivot_low_col: str, suffix: str):
+    (bearish_divergences, bearish_lines, bullish_divergences, bullish_lines) = divergence_finder_dataframe(
+        dataframe,
+        indicator,
+        pivot_high_col=pivot_high_col,
+        pivot_low_col=pivot_low_col,
+        output_suffix=suffix
+    )
+    return {
+        f'bearish_divergence_{indicator}_occurence{suffix}': bearish_divergences,
+        f'bullish_divergence_{indicator}_occurence{suffix}': bullish_divergences
+    }
+
+def batch_add_divergences(dataframe: DataFrame, divergence_results: dict) -> DataFrame:
+    """批量添加背离列，避免DataFrame碎片化
+
+    返回合并后的新DataFrame，避免原地修改导致的碎片化
+    """
+    if not divergence_results:
+        return dataframe
+    # 创建包含所有新列的DataFrame
+    new_cols_df = pd.DataFrame(divergence_results, index=dataframe.index)
+    # 使用pd.concat一次性合并，避免循环添加导致的碎片化
+    return pd.concat([dataframe, new_cols_df], axis=1)
+
+def divergence_finder_dataframe(dataframe: DataFrame, indicator_source: str,
+                                pivot_high_col: str = 'pivot_highs',
+                                pivot_low_col: str = 'pivot_lows',
+                                output_suffix: str = '') -> Tuple[pd.Series, pd.Series]:
     # 用于存储背离连线（绘图用）
     bearish_lines = [np.empty(len(dataframe['close'])) * np.nan]
     # 记录背离出现时的收盘价；其它位置用 NaN 占位。
@@ -673,32 +887,54 @@ def divergence_finder_dataframe(dataframe: DataFrame, indicator_source: str) -> 
     # 指标标签，用于在图表中显示
     indicator_label = indicator_source.upper() + '<br>'
 
+    # 使用临时字典存储所有更新，避免DataFrame碎片化
+    count_column_bearish = f"total_bearish_divergences_count{output_suffix}"
+    name_column_bearish = f"total_bearish_divergences_names{output_suffix}"
+    count_column_bullish = f"total_bullish_divergences_count{output_suffix}"
+    name_column_bullish = f"total_bullish_divergences_names{output_suffix}"
+    total_column_bearish = f"total_bearish_divergences{output_suffix}"
+    total_column_bullish = f"total_bullish_divergences{output_suffix}"
+
+    # 临时存储所有待更新的值
+    pending_updates = {
+        count_column_bearish: {},
+        name_column_bearish: {},
+        count_column_bullish: {},
+        name_column_bullish: {},
+        total_column_bearish: {},
+        total_column_bullish: {}
+    }
+
     def _append_divergence_metadata(position: int, count_column: str, name_column: str) -> None:
         if position < 0:
             return
-        target_position = position
-        target_index = dataframe.index[target_position]
+        target_index = dataframe.index[position]
 
-        # 背离数统计
-        current_count = dataframe.loc[target_index, count_column]
+        # 背离数统计 - 先更新临时字典
+        current_count = pending_updates[count_column].get(target_index,
+                                                          dataframe.loc[target_index, count_column] if count_column in dataframe.columns else np.nan)
         if pd.isna(current_count):
             current_count = 0
-        dataframe.loc[target_index, count_column] = current_count + 1
+        pending_updates[count_column][target_index] = current_count + 1
 
-        # 背离名称统计
-        current_names = dataframe.loc[target_index, name_column]
+        # 背离名称统计 - 先更新临时字典
+        current_names = pending_updates[name_column].get(target_index,
+                                                         dataframe.loc[target_index, name_column] if name_column in dataframe.columns else "")
         if pd.isna(current_names):
             current_names = ""
-        dataframe.loc[target_index, name_column] = f"{current_names}{indicator_label}"
+        pending_updates[name_column][target_index] = f"{current_names}{indicator_label}"
 
     # 遍历 DataFrame，若当前行没有枢轴低点，就沿用上一行记录的索引；有则记录本行索引。高点同理。
-    # 便于后续用 *_iterator[index] 直接得知“最新枢轴位于何处”。
+    # 便于后续用 *_iterator[index] 直接得知"最新枢轴位于何处"。
     for index, row in enumerate(dataframe.itertuples(index=True, name='Pandas')):
-        if np.isnan(row.pivot_lows):
+        pivot_low_value = dataframe[pivot_low_col].iloc[index]
+        pivot_high_value = dataframe[pivot_high_col].iloc[index]
+
+        if np.isnan(pivot_low_value):
             low_iterator.append(0 if len(low_iterator) == 0 else low_iterator[-1])
         else:
             low_iterator.append(index)
-        if np.isnan(row.pivot_highs):
+        if np.isnan(pivot_high_value):
             high_iterator.append(0 if len(high_iterator) == 0 else high_iterator[-1])
         else:
             high_iterator.append(index)
@@ -711,7 +947,8 @@ def divergence_finder_dataframe(dataframe: DataFrame, indicator_source: str) -> 
         bearish_occurence = bearish_divergence_finder(dataframe,
             dataframe[indicator_source],
             high_iterator,
-            index)
+            index,
+            pivot_high_col)
 
         # 解析前后枢轴的价格/指标值，并建立连线：
         # length 为两枢轴间的距离。
@@ -752,14 +989,15 @@ def divergence_finder_dataframe(dataframe: DataFrame, indicator_source: str) -> 
             if can_exist:
                 bearish_divergences[index] = row.close
                 row_index = dataframe.index[index]
-                dataframe.loc[row_index, "total_bearish_divergences"] = row.close
-                
+                # 使用临时字典存储，避免DataFrame碎片化
+                pending_updates[total_column_bearish][row_index] = row.close
+
                 # # 打印当前行的日期和看跌背离信息
                 # # 如果当前的计算机时间跟 dataframe 的时间相差在小于等于30分钟以内，打印出来以便调试
                 # current_time = datetime.now(timezone.utc)
                 # if abs((current_time - row.date).total_seconds()) <= 3600 * 4:
                 #     print(f"Date: {row.date}, Bearish Divergence Close: {row.close}, current date: {current_time}")
-                
+
                 # # 打印df的tail3信息，
                 # print(f"DataFrame tail 3 rows:\n{dataframe.tail(3)}")
 
@@ -768,14 +1006,15 @@ def divergence_finder_dataframe(dataframe: DataFrame, indicator_source: str) -> 
 
                 _append_divergence_metadata(
                     index,
-                    "total_bearish_divergences_count",
-                    "total_bearish_divergences_names",
+                    count_column_bearish,
+                    name_column_bearish,
                 )
 
         bullish_occurence = bullish_divergence_finder(dataframe,
             dataframe[indicator_source],
             low_iterator,
-            index)
+            index,
+            pivot_low_col)
         
         if bullish_occurence != None:
             (prev_pivot , current_pivot) = bullish_occurence
@@ -810,16 +1049,26 @@ def divergence_finder_dataframe(dataframe: DataFrame, indicator_source: str) -> 
             if can_exist:
                 bullish_divergences[index] = row.close
                 row_index = dataframe.index[index]
-                dataframe.loc[row_index, "total_bullish_divergences"] = row.close
+                # 使用临时字典存储，避免DataFrame碎片化
+                pending_updates[total_column_bullish][row_index] = row.close
                 _append_divergence_metadata(
                     index,
-                    "total_bullish_divergences_count",
-                    "total_bullish_divergences_names",
+                    count_column_bullish,
+                    name_column_bullish,
                 )
+
+    # 批量更新DataFrame，使用Series避免碎片化
+    for column_name, updates in pending_updates.items():
+        if updates:  # 只有当有更新时才处理
+            # 创建Series并一次性更新
+            update_series = pd.Series(updates)
+            if column_name not in dataframe.columns:
+                dataframe[column_name] = np.nan
+            dataframe.loc[update_series.index, column_name] = update_series.values
 
     return (bearish_divergences, bearish_lines, bullish_divergences, bullish_lines)
 
-def bearish_divergence_finder(dataframe, indicator, high_iterator, index):
+def bearish_divergence_finder(dataframe, indicator, high_iterator, index, pivot_high_col='pivot_highs'):
     # high_iterator 是一个数组，长度等于 DataFrame
     # 对于非枢轴点位置，high_iterator[i] 存储的是上一个枢轴点的索引
     # 对于枢轴点位置，high_iterator[i] == i（指向自己）
@@ -845,26 +1094,30 @@ def bearish_divergence_finder(dataframe, indicator, high_iterator, index):
         current_index = occurences.index(high_iterator[index])
         
         # 向前查找历史枢轴点, 最多查找5个
-        for i in range(current_index-1,current_index-6,-1):            
+        for i in range(current_index-1, max(current_index-6, -1), -1):
+            if i < 0:  # 防止索引越界
+                break
             prev_pivot = occurences[i]
             if np.isnan(prev_pivot):
                 return
-            if ((dataframe['pivot_highs'][current_pivot] < dataframe['pivot_highs'][prev_pivot] and indicator[current_pivot] > indicator[prev_pivot])
-            or (dataframe['pivot_highs'][current_pivot] > dataframe['pivot_highs'][prev_pivot] and indicator[current_pivot] < indicator[prev_pivot])):
+            if ((dataframe[pivot_high_col][current_pivot] < dataframe[pivot_high_col][prev_pivot] and indicator[current_pivot] > indicator[prev_pivot])
+            or (dataframe[pivot_high_col][current_pivot] > dataframe[pivot_high_col][prev_pivot] and indicator[current_pivot] < indicator[prev_pivot])):
                 return (prev_pivot , current_pivot)
     return None
 
-def bullish_divergence_finder(dataframe, indicator, low_iterator, index):
+def bullish_divergence_finder(dataframe, indicator, low_iterator, index, pivot_low_col='pivot_lows'):
     if low_iterator[index] == index:
         current_pivot = low_iterator[index]
         occurences = list(dict.fromkeys(low_iterator))
         current_index = occurences.index(low_iterator[index])
-        for i in range(current_index-1,current_index-6,-1):
+        for i in range(current_index-1, max(current_index-6, -1), -1):
+            if i < 0:  # 防止索引越界
+                break
             prev_pivot = occurences[i]
             if np.isnan(prev_pivot):
-                return 
-            if ((dataframe['pivot_lows'][current_pivot] < dataframe['pivot_lows'][prev_pivot] and indicator[current_pivot] > indicator[prev_pivot])
-            or (dataframe['pivot_lows'][current_pivot] > dataframe['pivot_lows'][prev_pivot] and indicator[current_pivot] < indicator[prev_pivot])):
+                return
+            if ((dataframe[pivot_low_col][current_pivot] < dataframe[pivot_low_col][prev_pivot] and indicator[current_pivot] > indicator[prev_pivot])
+            or (dataframe[pivot_low_col][current_pivot] > dataframe[pivot_low_col][prev_pivot] and indicator[current_pivot] < indicator[prev_pivot])):
                 return (prev_pivot, current_pivot)
     return None
 
@@ -874,6 +1127,10 @@ class PivotSource(Enum):
     Close = 1
 
 def pivot_points(dataframe: DataFrame, window: int = 5, pivot_source: PivotSource = PivotSource.Close) -> DataFrame:
+    """
+    计算确认的枢轴点（需要左右各window根K线确认）
+    返回pivot_lows和pivot_highs两列
+    """
     high_source = None
     low_source = None
 
@@ -887,7 +1144,7 @@ def pivot_points(dataframe: DataFrame, window: int = 5, pivot_source: PivotSourc
     pivot_points_lows = np.empty(len(dataframe['close'])) * np.nan
     pivot_points_highs = np.empty(len(dataframe['close'])) * np.nan
     last_values = deque()
-    
+
     # find pivot points
     for index, row in enumerate(dataframe.itertuples(index=True, name='Pandas')):
         last_values.append(row)
@@ -906,7 +1163,7 @@ def pivot_points(dataframe: DataFrame, window: int = 5, pivot_source: PivotSourc
             if is_less:
                 pivot_points_lows[index - window] = getattr(current_value, low_source)
             last_values.popleft()
-   
+
     # find last one
     if len(last_values) >= window + 2:
         current_value = last_values[-2]
@@ -926,6 +1183,104 @@ def pivot_points(dataframe: DataFrame, window: int = 5, pivot_source: PivotSourc
     return pd.DataFrame(index=dataframe.index, data={
         'pivot_lows': pivot_points_lows,
         'pivot_highs': pivot_points_highs
+    })
+
+
+def compute_realtime_tentative_pivots(dataframe: DataFrame, window: int = 5, pivot_source: PivotSource = PivotSource.Close) -> DataFrame:
+    """
+    模拟实盘交易场景，计算临时枢轴点
+
+    对于每根K线，假设它是实盘交易时的最新K线，
+    基于已有的数据（该K线及之前的所有K线）判断枢轴点。
+
+    这些枢轴点可能只有部分右侧确认（1-4根），因此标记为临时枢轴点。
+    """
+    high_source = None
+    low_source = None
+
+    if pivot_source == PivotSource.Close:
+        high_source = 'close'
+        low_source = 'close'
+    elif pivot_source == PivotSource.HighLow:
+        high_source = 'high'
+        low_source = 'low'
+
+    total_bars = len(dataframe)
+    pivot_points_lows_tentative = np.empty(total_bars) * np.nan
+    pivot_points_highs_tentative = np.empty(total_bars) * np.nan
+
+    # 对于每根K线，假设它是当前最新的K线
+    for current_bar in range(window + 1, total_bars):  # 至少需要window+1根K线才能开始检测
+        # 在实盘交易时，我们只能看到current_bar及之前的数据
+        # 尝试在可见范围内寻找枢轴点
+
+        # 检查从window到current_bar-1之间的每个位置是否是枢轴点
+        # (current_bar是"当前K线"，不检查它本身)
+        for check_index in range(window, current_bar):
+            # 计算这个位置左侧和右侧有多少根K线
+            left_bars = check_index  # 左侧有check_index根K线 (0 到 check_index-1)
+            right_bars = current_bar - check_index - 1  # 右侧K线数量
+
+            # 至少需要window根左侧K线
+            if left_bars < window:
+                continue
+
+            # 右侧至少要有1根K线才能判断
+            if right_bars < 1:
+                continue
+
+            # 只检测右侧K线少于window根的情况（否则应该是确认枢轴点了）
+            if right_bars >= window:
+                continue
+
+            # 检查是否已经在之前的迭代中标记过（避免重复标记）
+            # 如果已经标记过，跳过
+            if not np.isnan(pivot_points_highs_tentative[check_index]) or not np.isnan(pivot_points_lows_tentative[check_index]):
+                continue
+
+            # 检查是否是临时枢轴高点
+            is_high_pivot = True
+            current_high = dataframe.iloc[check_index][high_source]
+
+            # 检查左侧window根K线
+            for i in range(max(0, check_index - window), check_index):
+                if dataframe.iloc[i][high_source] >= current_high:
+                    is_high_pivot = False
+                    break
+
+            # 检查右侧所有可用K线（1到right_bars根）
+            if is_high_pivot:
+                for i in range(check_index + 1, current_bar):
+                    if dataframe.iloc[i][high_source] >= current_high:
+                        is_high_pivot = False
+                        break
+
+            # 检查是否是临时枢轴低点
+            is_low_pivot = True
+            current_low = dataframe.iloc[check_index][low_source]
+
+            # 检查左侧window根K线
+            for i in range(max(0, check_index - window), check_index):
+                if dataframe.iloc[i][low_source] <= current_low:
+                    is_low_pivot = False
+                    break
+
+            # 检查右侧所有可用K线
+            if is_low_pivot:
+                for i in range(check_index + 1, current_bar):
+                    if dataframe.iloc[i][low_source] <= current_low:
+                        is_low_pivot = False
+                        break
+
+            # 标记临时枢轴点
+            if is_high_pivot:
+                pivot_points_highs_tentative[check_index] = current_high
+            if is_low_pivot:
+                pivot_points_lows_tentative[check_index] = current_low
+
+    return pd.DataFrame(index=dataframe.index, data={
+        'pivot_lows_tentative': pivot_points_lows_tentative,
+        'pivot_highs_tentative': pivot_points_highs_tentative
     })
 
 def check_if_pivot_is_greater_or_less(current_value, high_source: str, low_source: str, left, right) -> Tuple[bool, bool]:
