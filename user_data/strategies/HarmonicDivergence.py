@@ -214,19 +214,9 @@ class PlotConfig():
         tentative_bullish_count = tentative_bullish_count[self.startup_candle_count_offset:]
         tentative_bullish_names = tentative_bullish_names[self.startup_candle_count_offset:]
 
-        print(f"tentative_bullish_count after offset: {tentative_bullish_count}")
-        print(f"tentative_bullish_names after offset: {tentative_bullish_names}")
         # 检查两个df中是否有有效值
         valid_bullish_count = tentative_bullish_count.dropna()
         valid_bullish_names = tentative_bullish_names[tentative_bullish_names != ""]
-        print(f"[临时看涨背离] 有效count数量: {len(valid_bullish_count)}")
-        if len(valid_bullish_count) > 0:
-            print(f"  有效count索引: {valid_bullish_count.index.tolist()}")
-            print(f"  有效count值: {valid_bullish_count.values.tolist()}")
-        print(f"[临时看涨背离] 有效names数量: {len(valid_bullish_names)}")
-        if len(valid_bullish_names) > 0:
-            print(f"  有效names索引: {valid_bullish_names.index.tolist()}")
-            print(f"  有效names值: {valid_bullish_names.values.tolist()}")
 
         self.config['main_plot'][resample("total_bullish_divergences_tentative")] = {
             "plotly": {
@@ -254,14 +244,6 @@ class PlotConfig():
         # 检查两个df中是否有有效值
         valid_bearish_count = tentative_bearish_count.dropna()
         valid_bearish_names = tentative_bearish_names[tentative_bearish_names != ""]
-        print(f"[临时看跌背离] 有效count数量: {len(valid_bearish_count)}")
-        if len(valid_bearish_count) > 0:
-            print(f"  有效count索引: {valid_bearish_count.index.tolist()}")
-            print(f"  有效count值: {valid_bearish_count.values.tolist()}")
-        print(f"[临时看跌背离] 有效names数量: {len(valid_bearish_names)}")
-        if len(valid_bearish_names) > 0:
-            print(f"  有效names索引: {valid_bearish_names.index.tolist()}")
-            print(f"  有效names值: {valid_bearish_names.values.tolist()}")
 
         self.config['main_plot'][resample("total_bearish_divergences_tentative")] = {
             "plotly": {
@@ -468,15 +450,6 @@ class HarmonicDivergence(IStrategy):
         # 打印临时枢轴点信息
         tentative_lows_count = pivots_tentative['pivot_lows_tentative'].dropna()
         tentative_highs_count = pivots_tentative['pivot_highs_tentative'].dropna()
-        print("populate_indicators - 临时枢轴点统计信息:")
-        print(f"[临时枢轴点] 临时低点数量: {len(tentative_lows_count)}")
-        if len(tentative_lows_count) > 0:
-            print(f"  临时低点索引: {tentative_lows_count.index.tolist()}")
-            print(f"  临时低点值: {tentative_lows_count.values.tolist()}")
-        print(f"[临时枢轴点] 临时高点数量: {len(tentative_highs_count)}")
-        if len(tentative_highs_count) > 0:
-            print(f"  临时高点索引: {tentative_highs_count.index.tolist()}")
-            print(f"  临时高点值: {tentative_highs_count.values.tolist()}")
 
         # Use the helper function merge_informative_pair to safely merge the pair
         # Automatically renames the columns and merges a shorter timeframe dataframe and a longer timeframe informative pair
@@ -525,15 +498,6 @@ class HarmonicDivergence(IStrategy):
         # 打印临时背离统计信息
         tentative_bullish = informative['total_bullish_divergences_tentative'].dropna()
         tentative_bearish = informative['total_bearish_divergences_tentative'].dropna()
-        print("populate_indicators - 临时背离统计信息:")
-        print(f"[临时背离] 看涨背离数量: {len(tentative_bullish)}")
-        if len(tentative_bullish) > 0:
-            print(f"  看涨背离索引: {tentative_bullish.index.tolist()}")
-            print(f"  看涨背离值: {tentative_bullish.values.tolist()}")
-        print(f"[临时背离] 看跌背离数量: {len(tentative_bearish)}")
-        if len(tentative_bearish) > 0:
-            print(f"  看跌背离索引: {tentative_bearish.index.tolist()}")
-            print(f"  看跌背离值: {tentative_bearish.values.tolist()}")
 
         # print("-------------------informative-------------------")
         # print(informative)
@@ -594,12 +558,13 @@ class HarmonicDivergence(IStrategy):
         :param metadata: Additional information, like the currently traded pair
         :return: DataFrame with buy column
         """
+        # 做多入场信号：检测看涨背离 + 趋势/位置过滤
         dataframe.loc[
             (
                 # 同时检测临时背离和确认背离（任一出现即触发）
                 (
-                    (dataframe[resample('total_bullish_divergences_tentative')].shift() > 0) |
-                    (dataframe[resample('total_bullish_divergences_confirmed')].shift() > 0)
+                    (dataframe[resample('total_bullish_divergences_tentative')] > 0) |
+                    (dataframe[resample('total_bullish_divergences_confirmed')] > 0)
                 )
                 # (dataframe[resample('total_bullish_divergences')] > 0)
                 # # & (dataframe['high'] > dataframe['high'].shift())
@@ -611,10 +576,19 @@ class HarmonicDivergence(IStrategy):
                 #     # | (keltner_lowerband_check(dataframe) & (green_candle(dataframe)))
                 #     | (bollinger_lowerband_check(dataframe) & (ema_check(dataframe)))
                 # )
-                & two_bands_check(dataframe)
-                # # & bollinger_keltner_check(dataframe)
+                # & bollinger_keltner_check(dataframe)
                 # & ema_cross_check(dataframe)
-                & (dataframe['volume'] > 0)  # Make sure Volume is not 0
+                & (
+                    # 趋势过滤：上升趋势或在支撑位附近
+                    (dataframe['close'] > dataframe[resample('ema50')])  # 价格在EMA50之下（上升趋势）
+                    | (keltner_lowerband_check(dataframe))               # 或触及Keltner下轨（支撑位）
+                    | (bollinger_lowerband_check(dataframe))            # 或触及布林带下轨（支撑位）
+                )
+                & (dataframe[resample('rsi')] > 25)   # RSI > 25, 避免极度接飞刀 (原 20)
+                & (dataframe[resample('rsi')] < 55)   # RSI < 55, 还有上涨空间 (原 50)
+                & (dataframe[resample('adx')] > 20)   # ADX > 20, 确保有一定波动率
+                & two_bands_check(dataframe)         # 排除极端波动
+                & (dataframe['volume'] > 0)          # 成交量必须大于0
             ),
             'enter_long'] = 1
 
@@ -623,17 +597,18 @@ class HarmonicDivergence(IStrategy):
             (
                 # 同时检测临时背离和确认背离（任一出现即触发）
                 (
-                    (dataframe[resample('total_bearish_divergences_tentative')].shift() > 0) |
-                    (dataframe[resample('total_bearish_divergences_confirmed')].shift() > 0)
+                    (dataframe[resample('total_bearish_divergences_tentative')] > 0) |
+                    (dataframe[resample('total_bearish_divergences_confirmed')] > 0)
                 )
-                # & (
-                #     # 趋势过滤：下降趋势或在阻力位附近
-                #     (dataframe['close'] < dataframe[resample('ema50')])  # 价格在EMA50之下（下降趋势）
-                #     | (keltner_upperband_check(dataframe))  # 或触及Keltner上轨（阻力位）
-                #     | (bollinger_upperband_check(dataframe))  # 或触及布林带上轨（阻力位）
-                # )
-                # & (dataframe[resample('rsi')] > 50)  # RSI在中性区域以上，避免在超卖区域做空
-                # & (dataframe[resample('rsi')] < 80)  # RSI不过于超买，避免追高
+                & (
+                    # 趋势过滤：下降趋势或在阻力位附近
+                    (dataframe['close'] < dataframe[resample('ema50')])  # 价格在EMA50之下（下降趋势）
+                    | (keltner_upperband_check(dataframe))  # 或触及Keltner上轨（阻力位）
+                    | (bollinger_upperband_check(dataframe))  # 或触及布林带上轨（阻力位）
+                )
+                & (dataframe[resample('rsi')] > 45)  # RSI > 45 (原 50)
+                & (dataframe[resample('rsi')] < 75)  # RSI < 75 (原 80)
+                & (dataframe[resample('adx')] > 20)  # ADX > 20
                 & two_bands_check(dataframe)  # 排除极端波动
                 & (dataframe['volume'] > 0)  # Make sure Volume is not 0
             ),
@@ -643,42 +618,47 @@ class HarmonicDivergence(IStrategy):
 
     def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         """
-        基于背离信号的退出策略
-
-        做多退出：检测到看跌背离
-        做空退出：检测到看涨背离
-
+        基于背离信号和超买超卖的优化退出策略
         """
-        # dataframe.loc[
-        #     (
-        #         (dataframe['volume'] > 0)  # Make sure Volume is not 0
-        #     ),
-        #     'exit_long'] = 0
-
-        # dataframe.loc[
-        #     (
-        #         (dataframe['volume'] > 0)  # Make sure Volume is not 0
-        #     ),
-        #     'exit_short'] = 0
         
+        # ----------------------------------------------------------------------
+        # 做多退出 (Exit Long)
+        # ----------------------------------------------------------------------
         dataframe.loc[
             (
-                # 同时检测临时背离和确认背离（任一出现即触发）
+                # 1. 结构破坏：检测到看跌背离（动能衰竭）
                 (
-                    (dataframe[resample('total_bearish_divergences_tentative')].shift() > 0) |
-                    (dataframe[resample('total_bearish_divergences_confirmed')].shift() > 0)
+                    (dataframe[resample('total_bearish_divergences_tentative')] > 0) |
+                    (dataframe[resample('total_bearish_divergences_confirmed')] > 0)
                 )
-            ),
+                # 2. 或者：RSI 进入超买区 (原 80 太高，降至 70-75)
+                | (dataframe[resample('rsi')] > 75)
+                # 3. 或者：触及布林带上轨（均值回归压力位）
+                | (dataframe['high'] >= dataframe[resample('bollinger_upperband')])
+                # 4. 或者：触及 Keltner 上轨
+                | (dataframe['high'] >= dataframe[resample('kc_upperband')])
+            )
+            & (dataframe['volume'] > 0), # 基础过滤
             'exit_long'] = 1
 
+        # ----------------------------------------------------------------------
+        # 做空退出 (Exit Short)
+        # ----------------------------------------------------------------------
         dataframe.loc[
             (
-                # 同时检测临时背离和确认背离（任一出现即触发）
+                # 1. 结构破坏：检测到看涨背离（动能衰竭）
                 (
-                    (dataframe[resample('total_bullish_divergences_tentative')].shift() > 0) |
-                    (dataframe[resample('total_bullish_divergences_confirmed')].shift() > 0)
+                    (dataframe[resample('total_bullish_divergences_tentative')] > 0) |
+                    (dataframe[resample('total_bullish_divergences_confirmed')] > 0)
                 )
-            ),
+                # 2. 或者：RSI 进入超卖区 (原 20 太低，升至 25-30)
+                | (dataframe[resample('rsi')] < 25)
+                # 3. 或者：触及布林带下轨（均值回归支撑位）
+                | (dataframe['low'] <= dataframe[resample('bollinger_lowerband')])
+                # 4. 或者：触及 Keltner 下轨
+                | (dataframe['low'] <= dataframe[resample('kc_lowerband')])
+            )
+            & (dataframe['volume'] > 0), # 基础过滤
             'exit_short'] = 1
 
         return dataframe
@@ -1165,20 +1145,20 @@ def pivot_points(dataframe: DataFrame, window: int = 5, pivot_source: PivotSourc
             last_values.popleft()
 
     # find last one
-    if len(last_values) >= window + 2:
-        current_value = last_values[-2]
+    if len(last_values) >= window + 1:
+        current_value = last_values[-1]
         is_greater = True
         is_less = True
         for window_index in range(0, window):
-            left = last_values[-2 - window_index - 1]
+            left = last_values[-1 - window_index - 1]
             right = last_values[-1]
             local_is_greater, local_is_less = check_if_pivot_is_greater_or_less(current_value, high_source, low_source, left, right)
             is_greater &= local_is_greater
             is_less &= local_is_less
         if is_greater:
-            pivot_points_highs[index - 1] = getattr(current_value, high_source)
+            pivot_points_highs[index] = getattr(current_value, high_source)
         if is_less:
-            pivot_points_lows[index - 1] = getattr(current_value, low_source)
+            pivot_points_lows[index] = getattr(current_value, low_source)
 
     return pd.DataFrame(index=dataframe.index, data={
         'pivot_lows': pivot_points_lows,
@@ -1188,12 +1168,14 @@ def pivot_points(dataframe: DataFrame, window: int = 5, pivot_source: PivotSourc
 
 def compute_realtime_tentative_pivots(dataframe: DataFrame, window: int = 5, pivot_source: PivotSource = PivotSource.Close) -> DataFrame:
     """
-    模拟实盘交易场景，计算临时枢轴点
+    模拟实盘交易场景，计算临时枢轴点（只依赖左侧K线，不需要右侧确认）
 
-    对于每根K线，假设它是实盘交易时的最新K线，
-    基于已有的数据（该K线及之前的所有K线）判断枢轴点。
+    对于每根K线 i，假设它是实盘交易时的“最新一根 K 线”，
+    只用它左侧 window 根K线来判断是否为临时枢轴点：
+        - 临时枢轴高点：当前 high 大于左侧 window 根的所有 high
+        - 临时枢轴低点：当前 low  小于左侧 window 根的所有 low
 
-    这些枢轴点可能只有部分右侧确认（1-4根），因此标记为临时枢轴点。
+    不再要求右侧至少 1 根或部分右侧确认。
     """
     high_source = None
     low_source = None
@@ -1209,74 +1191,30 @@ def compute_realtime_tentative_pivots(dataframe: DataFrame, window: int = 5, piv
     pivot_points_lows_tentative = np.empty(total_bars) * np.nan
     pivot_points_highs_tentative = np.empty(total_bars) * np.nan
 
-    # 对于每根K线，假设它是当前最新的K线
-    for current_bar in range(window + 1, total_bars):  # 至少需要window+1根K线才能开始检测
-        # 在实盘交易时，我们只能看到current_bar及之前的数据
-        # 尝试在可见范围内寻找枢轴点
+    # 对于每根K线 i，把它当成“当前最新K线”来检测是否为临时枢轴点
+    # 只使用左侧 window 根K线，不看任何右侧数据
+    for i in range(window, total_bars):
+        # 检查是否是临时枢轴高点：当前 high 大于左侧 window 根的所有 high
+        is_high_pivot = True
+        current_high = dataframe.iloc[i][high_source]
+        for j in range(i - window, i):
+            if dataframe.iloc[j][high_source] >= current_high:
+                is_high_pivot = False
+                break
 
-        # 检查从window到current_bar-1之间的每个位置是否是枢轴点
-        # (current_bar是"当前K线"，不检查它本身)
-        for check_index in range(window, current_bar):
-            # 计算这个位置左侧和右侧有多少根K线
-            left_bars = check_index  # 左侧有check_index根K线 (0 到 check_index-1)
-            right_bars = current_bar - check_index - 1  # 右侧K线数量
+        # 检查是否是临时枢轴低点：当前 low 小于左侧 window 根的所有 low
+        is_low_pivot = True
+        current_low = dataframe.iloc[i][low_source]
+        for j in range(i - window, i):
+            if dataframe.iloc[j][low_source] <= current_low:
+                is_low_pivot = False
+                break
 
-            # 至少需要window根左侧K线
-            if left_bars < window:
-                continue
-
-            # 右侧至少要有1根K线才能判断
-            if right_bars < 1:
-                continue
-
-            # 只检测右侧K线少于window根的情况（否则应该是确认枢轴点了）
-            if right_bars >= window:
-                continue
-
-            # 检查是否已经在之前的迭代中标记过（避免重复标记）
-            # 如果已经标记过，跳过
-            if not np.isnan(pivot_points_highs_tentative[check_index]) or not np.isnan(pivot_points_lows_tentative[check_index]):
-                continue
-
-            # 检查是否是临时枢轴高点
-            is_high_pivot = True
-            current_high = dataframe.iloc[check_index][high_source]
-
-            # 检查左侧window根K线
-            for i in range(max(0, check_index - window), check_index):
-                if dataframe.iloc[i][high_source] >= current_high:
-                    is_high_pivot = False
-                    break
-
-            # 检查右侧所有可用K线（1到right_bars根）
-            if is_high_pivot:
-                for i in range(check_index + 1, current_bar):
-                    if dataframe.iloc[i][high_source] >= current_high:
-                        is_high_pivot = False
-                        break
-
-            # 检查是否是临时枢轴低点
-            is_low_pivot = True
-            current_low = dataframe.iloc[check_index][low_source]
-
-            # 检查左侧window根K线
-            for i in range(max(0, check_index - window), check_index):
-                if dataframe.iloc[i][low_source] <= current_low:
-                    is_low_pivot = False
-                    break
-
-            # 检查右侧所有可用K线
-            if is_low_pivot:
-                for i in range(check_index + 1, current_bar):
-                    if dataframe.iloc[i][low_source] <= current_low:
-                        is_low_pivot = False
-                        break
-
-            # 标记临时枢轴点
-            if is_high_pivot:
-                pivot_points_highs_tentative[check_index] = current_high
-            if is_low_pivot:
-                pivot_points_lows_tentative[check_index] = current_low
+        # 标记临时枢轴点（只在当前位置 i 标记）
+        if is_high_pivot:
+            pivot_points_highs_tentative[i] = current_high
+        if is_low_pivot:
+            pivot_points_lows_tentative[i] = current_low
 
     return pd.DataFrame(index=dataframe.index, data={
         'pivot_lows_tentative': pivot_points_lows_tentative,
@@ -1286,12 +1224,10 @@ def compute_realtime_tentative_pivots(dataframe: DataFrame, window: int = 5, piv
 def check_if_pivot_is_greater_or_less(current_value, high_source: str, low_source: str, left, right) -> Tuple[bool, bool]:
     is_greater = True
     is_less = True
-    if (getattr(current_value, high_source) < getattr(left, high_source) or
-        getattr(current_value, high_source) < getattr(right, high_source)):
+    if getattr(current_value, high_source) < getattr(left, high_source):
         is_greater = False
 
-    if (getattr(current_value, low_source) > getattr(left, low_source) or
-        getattr(current_value, low_source) > getattr(right, low_source)):
+    if getattr(current_value, low_source) > getattr(left, low_source):
         is_less = False
     return (is_greater, is_less)
 
